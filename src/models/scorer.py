@@ -15,6 +15,7 @@ import pandas as pd
 import polars as pl
 
 from src.features import engineering as E
+from src.models import calibration as K
 from src.models import cost_decision as C
 
 MODELS_DIR = Path(__file__).resolve().parents[2] / "data" / "processed" / "models"
@@ -34,8 +35,14 @@ class InvalidReadouts(ValueError):
 
 
 class RiskScorer:
-    def __init__(self, model, feature_cols: list[str], spec_categories: dict[str, list[str]], readout_columns: list[str]):
+    def __init__(
+        self, model, feature_cols: list[str], spec_categories: dict[str, list[str]], readout_columns: list[str],
+        platt: dict | None = None,
+    ):
         self.model = model
+        # Parametros {a, b} de la recalibracion de Platt. Sin ellos se usan las probabilidades crudas, que
+        # exageran el riesgo (ver el README); con ellos, el costo esperado de cada accion es creible.
+        self.platt = platt
         self.feature_cols = feature_cols
         self.spec_categories = spec_categories
         self.readout_columns = readout_columns
@@ -45,7 +52,9 @@ class RiskScorer:
         cols = json.loads((models_dir / "feature_columns.json").read_text(encoding="utf-8"))
         cats = json.loads((models_dir / "spec_categories.json").read_text(encoding="utf-8"))
         readout_cols = json.loads((models_dir / "readout_columns.json").read_text(encoding="utf-8"))
-        return cls(joblib.load(models_dir / "risk_classifier.joblib"), cols, cats, readout_cols)
+        platt_path = models_dir / "platt.json"
+        platt = json.loads(platt_path.read_text(encoding="utf-8")) if platt_path.exists() else None
+        return cls(joblib.load(models_dir / "risk_classifier.joblib"), cols, cats, readout_cols, platt)
 
     def _validate(self, readouts: list[dict], specs: dict[str, str]) -> None:
         if not readouts:
@@ -67,13 +76,16 @@ class RiskScorer:
         last = E.last_readout_per_vehicle(E.engineer_features(df)).to_pandas()
         for c in SPEC_COLUMNS:
             last[c] = pd.Categorical([specs[c]], categories=self.spec_categories[c])
-        proba = self.model.predict_proba(last[self.feature_cols])
+        raw = self.model.predict_proba(last[self.feature_cols])
+        proba = K.apply_platt(raw, self.platt["a"], self.platt["b"]) if self.platt else raw
         expected = C.expected_cost_matrix(proba)[0]
         action = int(expected.argmin())
         return {
             "n_lecturas": len(readouts),
             "probabilidad_por_clase": {str(k): round(float(p), 6) for k, p in enumerate(proba[0])},
             "probabilidad_algun_riesgo": round(float(1.0 - proba[0, 0]), 6),
+            "probabilidad_algun_riesgo_cruda": round(float(1.0 - raw[0, 0]), 6),
+            "recalibrada": self.platt is not None,
             "costo_esperado_por_accion": {str(k): round(float(v), 3) for k, v in enumerate(expected)},
             "clase_recomendada": action,
             "accion_recomendada": ACTIONS[action],

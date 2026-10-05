@@ -26,6 +26,7 @@ from sklearn.metrics import roc_auc_score
 
 from src.data import scania_loader as S
 from src.features import engineering as E
+from src.models import calibration as K
 from src.models import cost_decision as C
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -221,6 +222,16 @@ def run(force_features: bool = False) -> dict:
         "lecturas_train": int(readouts_tr.height), "features": len(cols),
     }, "clasificador": {"iteraciones": int(clf.best_iteration_)}}
 
+    # Calibracion de la probabilidad de riesgo con los camiones RETENIDOS del entrenamiento (el modelo no los
+    # vio; validacion y test no participan). Se usan los umbrales redondeados que tambien incrusta la pagina.
+    holdout_proba = clf.predict_proba(ho_pdf[cols])
+    calibrator = K.fit_risk_calibrator(holdout_proba, ho_pdf["class_label"].to_numpy(), ho_pdf["weight"].to_numpy())
+    calibrator_export = K.export_calibrator(calibrator)
+    cal_x, cal_y = np.array(calibrator_export["x"]), np.array(calibrator_export["y"])
+    results["clasificador"]["calibrador"] = calibrator_export
+
+    predictions = []
+    by_split = {}
     for split in ("validation", "test"):
         feats = E.last_readout_per_vehicle(load_features(split, force_features))
         labels = S.read_labels(split)
@@ -228,14 +239,60 @@ def run(force_features: bool = False) -> dict:
         proba = clf.predict_proba(frame[cols])
         results["clasificador"][split] = evaluate_decisions(frame["class_label"].to_numpy(), proba)
         results["clasificador"][split]["n_vehiculos"] = int(len(frame))
+        # Probabilidades por camion: la pagina web recalcula la decision con otros costos sin reentrenar.
+        predictions.append(
+            pd.DataFrame(
+                {"split": split, "vehicle_id": frame["vehicle_id"].to_numpy(), "class_label": frame["class_label"].to_numpy(),
+                 **{f"p{k}": proba[:, k].round(6) for k in range(5)}}
+            )
+        )
         # Discriminacion pura, sin depender de la regla de decision ni de los costos.
         results["clasificador"][split]["auc_algun_riesgo"] = float(
             roc_auc_score(frame["class_label"].to_numpy() > 0, 1.0 - proba[:, 0])
         )
+        y_split = frame["class_label"].to_numpy()
+        by_split[split] = (y_split, proba)
+        proba_cal = K.apply_risk_calibration(proba, cal_x, cal_y)
+        results["clasificador"][split]["sensibilidad_costo_visita"] = K.sensitivity(y_split, proba)
+        results["clasificador"][split]["costo_visita_equilibrio"] = K.break_even(y_split, proba)
+        results["clasificador"][split]["calibracion_tabla"] = K.calibration_table(y_split, proba)
+        results["clasificador"][split]["calibracion_global"] = K.calibration_error(y_split, proba)
+        results["clasificador"][split]["calibrado_en_retenidos"] = {
+            **evaluate_decisions(y_split, proba_cal),
+            "sensibilidad_costo_visita": K.sensitivity(y_split, proba_cal),
+            "costo_visita_equilibrio": K.break_even(y_split, proba_cal),
+            "calibracion_tabla": K.calibration_table(y_split, proba_cal),
+            "calibracion_global": K.calibration_error(y_split, proba_cal),
+        }
         res = results["clasificador"][split]
         print(f"[{split}] costo: todo-sano={res['siempre_sano']['costo_total']:,} argmax={res['argmax']['costo_total']:,} "
               f"min-costo-esperado={res['costo_esperado_minimo']['costo_total']:,} "
               f"(recall alarma {res['costo_esperado_minimo']['recall_alarma']:.2f}, falsas alarmas {res['costo_esperado_minimo']['falsas_alarmas']})")
+
+    # Recalibracion de Platt con protocolo fijado de antemano: se ajusta en un conjunto y se evalua en el OTRO,
+    # en las dos direcciones, y se reportan las dos (con ~140 fallas por conjunto, una sola direccion seria ruido).
+    platt = {s: K.fit_platt(by_split[s][1], by_split[s][0]) for s in by_split}
+    results["clasificador"]["platt"] = platt
+    # Para SERVIR probabilidades (API) se ajusta una sola recalibracion con ambos conjuntos juntos: 10.091 camiones y
+    # 278 fallas son mas estables que ~140. Es para servir, no para reportar desempeno: ahi se usan las dos direcciones.
+    pooled = K.fit_platt(
+        np.vstack([by_split[s][1] for s in by_split]), np.concatenate([by_split[s][0] for s in by_split])
+    )
+    results["clasificador"]["platt_para_api"] = pooled
+    (MODELS_DIR / "platt.json").write_text(json.dumps(pooled), encoding="utf-8")
+    for target, source in (("test", "validation"), ("validation", "test")):
+        y_t, proba_t = by_split[target]
+        proba_p = K.apply_platt(proba_t, **platt[source])
+        results["clasificador"][target]["recalibrado_con_el_otro_conjunto"] = {
+            "ajustado_en": source, "parametros": platt[source],
+            **{k: v for k, v in evaluate_decisions(y_t, proba_p).items() if k == "costo_esperado_minimo"},
+            "sensibilidad_costo_visita": K.sensitivity(y_t, proba_p),
+            "costo_visita_equilibrio": K.break_even(y_t, proba_p),
+            "calibracion_tabla": K.calibration_table(y_t, proba_p),
+            "calibracion_global": K.calibration_error(y_t, proba_p),
+        }
+
+    pd.concat(predictions, ignore_index=True).to_csv(REPORTS_DIR / "predictions.csv", index=False)
 
     # --- 2. tiempo restante (solo camiones con reparacion observada)
     failed = full.filter(pl.col("time_to_failure").is_not_null())

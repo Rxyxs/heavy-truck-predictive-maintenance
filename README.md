@@ -8,6 +8,8 @@
 
 ![Decision cost by rule](reports/figures/01_costo_decision.png)
 
+**[Interactive page](https://rxyxs.github.io/heavy-truck-predictive-maintenance/)**: move the cost of a workshop visit and watch the decision, and the saving, change.
+
 ## Why this project
 
 Predictive maintenance for haul fleets is a decision problem, not a classification problem: sending a truck to the workshop that did not need it costs a little, missing a failure costs a lot. An earlier version of this repository ran on a data generator I wrote myself, and a model that scores well on data its author simulated is measuring the simulator. I replaced it with a real public benchmark, **SCANIA Component X**, and rebuilt the pipeline around the cost structure that benchmark defines.
@@ -79,11 +81,51 @@ Discrimination, independent of the decision rule: ROC AUC for "any risk" is **0.
 
 **What this says, and what it does not.**
 
-- The rule cuts the official cost by about 30% against doing nothing. It does so by alarming a large share of healthy trucks, because with a 7–10 versus 200–500 cost ratio a false alarm is cheap. If your real cost of a workshop visit is higher than 7–10, the optimal policy alarms less and the saving shrinks.
+- The rule cuts the official cost by about 30% against doing nothing. It does so by alarming a large share of healthy trucks, because with a 7–10 versus 200–500 cost ratio a false alarm is cheap. If your real cost of a workshop visit is higher than 7–10 the saving disappears quickly, and with these probabilities it can turn negative: see the next section.
 - In practice the system behaves as a binary "alarm / no alarm" switch. Most of its alarms (about 78% on test) are class 4, so **it does not resolve the 24–48 / 12–24 / 6–12 windows** (see the matrix).
 - Argmax barely helps (it almost never alarms), which is the point of using the cost matrix to decide.
 - Recall and false-alarm rate differ noticeably between validation and test (93% / 74% against 77% / 50%) with the same model and rule. There are only 136 and 142 failing trucks in each set, so I would not read the difference as anything but noise around an AUC of about 0.70.
 - I do not compare against the challenge leaderboard: I have not verified those figures and the comparison would need the same protocol.
+
+### The saving is fragile, and the model's probabilities are not credible
+
+I found this while building the [interactive page](https://rxyxs.github.io/heavy-truck-predictive-maintenance/), where you can move the cost of a visit and watch the decision change. The headline numbers above pick, for each truck, the action with the lowest *expected* cost under the model's class probabilities. That is only optimal if those probabilities are credible.
+
+**The saving runs out when a visit costs about twice what the benchmark assumes.** The table scales the cost of an unnecessary visit (row 0 of the matrix, 7–10) and recomputes the optimal decision each time; the missed-failure costs do not change. Saving against recommending nothing:
+
+| Visit cost (× the benchmark's) | Validation | Test |
+|---|---|---|
+| ×0.5 | +59.6% | +60.2% |
+| ×1 (the benchmark) | +28.3% | +31.1% |
+| ×1.5 | +8.8% | +13.6% |
+| ×2 | −9.3% | +3.7% |
+| ×3 | −41.2% | −6.3% |
+| ×5 | −86.7% | −23.1% |
+| ×10 | −163.6% | −42.2% |
+| **Saving runs out at** (≤ 1%) | **×1.65** | **×2.19** |
+
+**The probabilities overstate the risk.** With credible probabilities, the minimum-expected-cost policy cannot do worse than recommending nothing; here it loses up to 164% on validation at a ×10 visit. The cause is that the model overstates the risk:
+
+| | Mean predicted risk | Observed failure rate | Trucks predicted at ≥ 50% risk that really fail |
+|---|---|---|---|
+| Validation | 19.5% | 2.7% | 5.7% |
+| Test | 7.9% | 2.8% | 7.1% |
+
+The ranking of trucks is not affected (the AUC stays at 0.71 and 0.70), but the numbers cannot be read as probabilities. I do not know the cause. A plausible one is that the model is trained on every readout of a truck, so it can recognise individual vehicles, and then meets new ones; I did not test it.
+
+**Recalibrating fixes the average, not the saving.** I fitted a two-parameter Platt scaling on one set and evaluated it on the other, in both directions, and report both: with about 140 failing trucks per set, one direction alone would be noise. The slopes are 0.17 and 0.23; a calibrated model would have a slope of 1.
+
+| | Raw probabilities | Recalibrated (fitted on the other set) |
+|---|---|---|
+| Validation: saving at ×1 | 28.3% | 33.2% |
+| Test: saving at ×1 | 31.1% | 7.4% |
+| Validation: saving runs out at | ×1.65 | ×2.19 |
+| Test: saving runs out at | ×2.19 | ×1.90 |
+| Mean predicted risk (validation / test) | 19.5% / 7.9% | 4.0% / 2.1% |
+
+Recalibrated probabilities contain the losses at high visit costs (at ×10 the saving is −7.5% on validation and +0.5% on test, instead of −163.6% and −42.2%), but the saving at the benchmark's own cost lies somewhere between 7% and 33% depending on which set it is fitted on. **The −28% / −31% above should be read as what the benchmark's cost matrix rewards, not as a forecast of what the model saves.**
+
+I also tried calibrating on held-out *training* trucks (isotonic regression), which does not touch validation or test: it did not help (predicted risk stays at 7.8% against 2.7% observed on validation, and the saving runs out at ×1.43 and ×1.84). So the mismatch is between how training readouts are drawn and the one-random-readout-per-truck protocol of validation and test, not a matter of scale. I did not investigate it further.
 
 ### Time to failure (vehicles that fail)
 
@@ -113,6 +155,7 @@ The SHAP ranking is led by `time_step`, `n_readouts` and `Spec_7`: the regressio
 - **Not mining data.** See above; transfer to off-highway mining trucks is an assumption.
 - **Anonymised variables**, so no physical diagnosis.
 - **Few positives.** 136 and 142 failing trucks in validation and test; the intervals around any cost figure are wide and I did not compute them.
+- **The probabilities are not credible as probabilities** (they predict several times the observed risk), so the saving is fragile and the "expected cost" the optimal rule minimises is not the real one. See the section above.
 - **The cost matrix is the benchmark's.** The saving is only as good as those 7–10 and 200–500 figures.
 - **Time units are unspecified** by the dataset, so "6 units" has no stated meaning in hours or kilometres.
 - **A single model family** (gradient boosting) and fixed hyperparameters. I did not try sequence models or tune the features further.
@@ -126,7 +169,7 @@ export RISK_API_KEY=change-me
 uvicorn src.api.main:app
 ```
 
-The model is loaded on first use; before training the endpoint answers `503` with the command to run.
+The model is loaded on first use; before training the endpoint answers `503` with the command to run. The returned probabilities are recalibrated with a single Platt fit on validation and test together (`probabilidad_algun_riesgo`); `probabilidad_algun_riesgo_cruda` gives the model's raw value.
 
 ## Run it
 
@@ -136,7 +179,7 @@ pip install -r requirements.txt
 
 python -c "from src.data.scania_loader import download; download()"   # ~1.65 GB into data/raw/scania
 python -m src.models.train_pipeline                                   # features, models, figures (~3 min)
-pytest                                                                # 52 tests, no dataset needed
+pytest                                                                # 101 tests, no dataset needed
 ```
 
 Outputs: `reports/results.json`, `reports/figures/`, `reports/shap_time_to_failure.csv`; models in `data/processed/models/`.
@@ -147,6 +190,9 @@ Outputs: `reports/results.json`, `reports/figures/`, `reports/shap_time_to_failu
 src/data/scania_loader.py       download, load, official labels and cost matrix
 src/features/engineering.py     per-readout features from cumulative counters
 src/models/cost_decision.py     minimum-expected-cost decision, confusion, alarm metrics
+src/models/calibration.py       probability calibration, sensitivity of the saving to the visit cost
+src/site.py                     builds the GitHub Pages page (docs/index.html)
+docs/                           the GitHub Pages site (generated; do not edit by hand)
 src/models/train_pipeline.py    classifier, time to failure, Cox, SHAP
 src/models/scorer.py            score one truck from its history
 src/models/make_figures.py      figures

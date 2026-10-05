@@ -114,3 +114,48 @@ def test_missing_specs_are_rejected(scorer):
 def test_unknown_spec_category_does_not_crash(scorer):
     out = scorer.score(make_readouts(5), {**SPECS, "Spec_3": "CategoriaNueva"})
     assert "clase_recomendada" in out
+
+
+# ----------------------------------------------------------------- recalibracion en el scorer
+def _with_platt(scorer, a=0.17, b=-3.2):
+    return RiskScorer(scorer.model, scorer.feature_cols, scorer.spec_categories, scorer.readout_columns, platt={"a": a, "b": b})
+
+
+def test_scorer_without_calibration_reports_it(scorer):
+    out = scorer.score(make_readouts(), SPECS)
+    assert out["recalibrada"] is False
+    assert out["probabilidad_algun_riesgo"] == out["probabilidad_algun_riesgo_cruda"]
+
+
+def test_recalibration_lowers_an_overstated_risk_and_keeps_a_valid_distribution(scorer):
+    # Platt comprime hacia la tasa base: baja los riesgos altos (donde el modelo exagera) y sube los minusculos.
+    calibrated = _with_platt(scorer).score(make_readouts(25, rate=40.0), SPECS)
+    assert calibrated["recalibrada"] is True
+    assert calibrated["probabilidad_algun_riesgo"] < calibrated["probabilidad_algun_riesgo_cruda"]
+    probs = np.array(list(calibrated["probabilidad_por_clase"].values()))
+    assert probs.sum() == pytest.approx(1.0, abs=1e-4) and (probs >= 0).all()
+
+
+def test_recalibration_changes_the_expected_costs_not_the_ranking_of_trucks(scorer):
+    calibrated = _with_platt(scorer)
+    mid = calibrated.score(make_readouts(25, rate=5.0), SPECS)
+    high = calibrated.score(make_readouts(25, rate=40.0), SPECS)
+    raw_mid, raw_high = scorer.score(make_readouts(25, rate=5.0), SPECS), scorer.score(make_readouts(25, rate=40.0), SPECS)
+    assert (mid["probabilidad_algun_riesgo"] <= high["probabilidad_algun_riesgo"]) == (
+        raw_mid["probabilidad_algun_riesgo"] <= raw_high["probabilidad_algun_riesgo"]
+    )
+    assert mid["costo_esperado_no_hacer_nada"] != raw_mid["costo_esperado_no_hacer_nada"]
+    assert high["costo_esperado_no_hacer_nada"] < raw_high["costo_esperado_no_hacer_nada"]  # el costo creible es mucho menor
+
+
+def test_scorer_loads_the_pooled_calibration_when_the_file_exists(tmp_path, scorer):
+    import joblib
+    import json
+
+    (tmp_path / "feature_columns.json").write_text(json.dumps(scorer.feature_cols), encoding="utf-8")
+    (tmp_path / "spec_categories.json").write_text(json.dumps(scorer.spec_categories), encoding="utf-8")
+    (tmp_path / "readout_columns.json").write_text(json.dumps(scorer.readout_columns), encoding="utf-8")
+    joblib.dump(scorer.model, tmp_path / "risk_classifier.joblib")
+    assert RiskScorer.load(tmp_path).platt is None
+    (tmp_path / "platt.json").write_text(json.dumps({"a": 0.17, "b": -3.2}), encoding="utf-8")
+    assert RiskScorer.load(tmp_path).platt == {"a": 0.17, "b": -3.2}
