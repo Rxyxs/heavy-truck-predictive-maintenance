@@ -8,6 +8,8 @@ Español · [English version](README.md)
 
 ![Costo de la decisión por regla](reports/figures/01_costo_decision.png)
 
+**[Página interactiva](https://rxyxs.github.io/heavy-truck-predictive-maintenance/)**: mueve el costo de una visita a taller y mira cómo cambian la decisión y el ahorro.
+
 ## Por qué este proyecto
 
 El mantenimiento predictivo de una flota de transporte es un problema de decisión, no de clasificación: mandar a taller un camión que no lo necesitaba cuesta poco; no detectar una falla cuesta mucho. Una versión anterior de este repositorio corría sobre un generador de datos que escribí yo mismo, y un modelo que funciona bien sobre datos que simuló su propio autor está midiendo el simulador. Lo reemplacé por un benchmark público real, **SCANIA Component X**, y reconstruí el pipeline en torno a la estructura de costos que ese benchmark define.
@@ -79,11 +81,51 @@ Discriminación, independiente de la regla de decisión: el AUC ROC de "algún r
 
 **Qué dice esto y qué no.**
 
-- La regla reduce el costo oficial en cerca de 30% frente a no hacer nada. Lo logra alarmando a una parte grande de los camiones sanos, porque con una razón de costos de 7–10 contra 200–500 una falsa alarma es barata. Si tu costo real de una visita a taller es mayor que 7–10, la política óptima alarma menos y el ahorro se achica.
+- La regla reduce el costo oficial en cerca de 30% frente a no hacer nada. Lo logra alarmando a una parte grande de los camiones sanos, porque con una razón de costos de 7–10 contra 200–500 una falsa alarma es barata. Si tu costo real de una visita a taller es mayor que 7–10 el ahorro desaparece rápido, y con estas probabilidades puede volverse negativo: ver la sección siguiente.
 - En la práctica el sistema funciona como un interruptor binario "alarma / sin alarma". La mayoría de sus alarmas (cerca de 78% en test) son clase 4, así que **no resuelve las ventanas 24–48 / 12–24 / 6–12** (ver la matriz).
 - El argmax casi no ayuda (casi nunca alarma), que es justamente la razón de usar la matriz de costos para decidir.
 - El recall y la tasa de falsas alarmas difieren bastante entre validación y test (93% / 74% contra 77% / 50%) con el mismo modelo y la misma regla. Hay solo 136 y 142 camiones que fallan en cada conjunto, así que no lo leería como nada distinto de ruido en torno a un AUC de cerca de 0,70.
 - No comparo contra la tabla de posiciones del reto: no he verificado esas cifras y la comparación requeriría el mismo protocolo.
+
+### El ahorro es frágil y las probabilidades del modelo no son creíbles
+
+Lo descubrí al armar la [página interactiva](https://rxyxs.github.io/heavy-truck-predictive-maintenance/), donde puedes mover el costo de una visita y ver cambiar la decisión. Las cifras de arriba eligen, para cada camión, la acción de menor costo *esperado* según las probabilidades por clase del modelo. Eso solo es óptimo si esas probabilidades son creíbles.
+
+**El ahorro se agota cuando una visita cuesta cerca del doble de lo que supone el reto.** La tabla multiplica el costo de una visita innecesaria (la fila 0 de la matriz, 7–10) y recalcula la decisión óptima cada vez; las fallas no detectadas no cambian. Ahorro frente a no recomendar nada:
+
+| Costo de la visita (× el del reto) | Validación | Test |
+|---|---|---|
+| ×0,5 | +59,6% | +60,2% |
+| ×1 (el costo del reto) | +28,3% | +31,1% |
+| ×1,5 | +8,8% | +13,6% |
+| ×2 | −9,3% | +3,7% |
+| ×3 | −41,2% | −6,3% |
+| ×5 | −86,7% | −23,1% |
+| ×10 | −163,6% | −42,2% |
+| **El ahorro se agota en** (≤ 1%) | **×1,65** | **×2,19** |
+
+**Las probabilidades exageran el riesgo.** Con probabilidades creíbles, la política de costo esperado mínimo no puede salir peor que no recomendar nada; aquí pierde hasta 164% en validación con una visita ×10. La causa es que el modelo exagera el riesgo:
+
+| | Riesgo medio predicho | Tasa de falla observada | Camiones con riesgo predicho ≥ 50% que fallan de verdad |
+|---|---|---|---|
+| Validación | 19,5% | 2,7% | 5,7% |
+| Test | 7,9% | 2,8% | 7,1% |
+
+El orden de los camiones no se ve afectado (el AUC sigue en 0,71 y 0,70), pero los números no se pueden leer como probabilidades. No sé la causa. Una plausible es que el modelo se entrena con todas las lecturas de un mismo camión y por eso puede reconocer vehículos individuales, para luego enfrentarse a camiones nuevos; no lo probé.
+
+**Recalibrar arregla el promedio, no el ahorro.** Ajusté un escalado de Platt (dos parámetros) en un conjunto y lo evalué en el otro, en las dos direcciones, y reporto las dos: con unas 140 fallas por conjunto, una sola dirección sería ruido. Las pendientes son 0,17 y 0,23; un modelo calibrado tendría pendiente 1.
+
+| | Probabilidades crudas | Recalibradas (ajustadas en el otro conjunto) |
+|---|---|---|
+| Validación: ahorro a ×1 | 28,3% | 33,2% |
+| Test: ahorro a ×1 | 31,1% | 7,4% |
+| Validación: el ahorro se agota en | ×1,65 | ×2,19 |
+| Test: el ahorro se agota en | ×2,19 | ×1,90 |
+| Riesgo medio predicho (validación / test) | 19,5% / 7,9% | 4,0% / 2,1% |
+
+Las probabilidades recalibradas contienen las pérdidas con visitas caras (a ×10 el ahorro es −7,5% en validación y +0,5% en test, en vez de −163,6% y −42,2%), pero el ahorro al costo del reto queda en algún punto entre 7% y 33% según el conjunto en que se ajuste. **El −28% / −31% de arriba debe leerse como lo que premia la matriz de costos del reto, no como un pronóstico de lo que ahorra el modelo.**
+
+También probé calibrar con camiones *retenidos del entrenamiento* (regresión isotónica), que no toca validación ni test: no ayudó (el riesgo predicho sigue en 7,8% contra 2,7% observado en validación, y el ahorro se agota en ×1,43 y ×1,84). Así que el desajuste es entre cómo se muestrean las lecturas de entrenamiento y el protocolo de una lectura al azar por camión de validación y test, y no una cuestión de escala. No lo investigué más.
 
 ### Tiempo hasta la falla (vehículos que fallan)
 
@@ -113,6 +155,7 @@ El ranking SHAP lo encabezan `time_step`, `n_readouts` y `Spec_7`: la regresión
 - **No son datos mineros.** Ver arriba; la transferencia a camiones de extracción fuera de ruta es un supuesto.
 - **Variables anonimizadas**, así que no hay diagnóstico físico.
 - **Pocos positivos.** 136 y 142 camiones que fallan en validación y test; los intervalos en torno a cualquier cifra de costo son anchos y no los calculé.
+- **Las probabilidades no son creíbles como probabilidades** (predicen varias veces el riesgo observado), así que el ahorro es frágil y el "costo esperado" que minimiza la regla óptima no es el real. Ver la sección de arriba.
 - **La matriz de costos es la del benchmark.** El ahorro vale lo que valgan esos 7–10 y 200–500.
 - **El dataset no especifica las unidades de tiempo**, así que "6 unidades" no tiene un significado declarado en horas o kilómetros.
 - **Una sola familia de modelos** (gradient boosting) e hiperparámetros fijos. No probé modelos secuenciales ni afiné más las features.
@@ -126,7 +169,7 @@ export RISK_API_KEY=change-me
 uvicorn src.api.main:app
 ```
 
-El modelo se carga en el primer uso; antes de entrenar el endpoint responde `503` con el comando a ejecutar.
+El modelo se carga en el primer uso; antes de entrenar el endpoint responde `503` con el comando a ejecutar. Las probabilidades que devuelve están recalibradas con un único ajuste de Platt sobre validación y test juntos (`probabilidad_algun_riesgo`); `probabilidad_algun_riesgo_cruda` da el valor crudo del modelo.
 
 ## Cómo correrlo
 
@@ -136,7 +179,7 @@ pip install -r requirements.txt
 
 python -c "from src.data.scania_loader import download; download()"   # ~1,65 GB en data/raw/scania
 python -m src.models.train_pipeline                                   # features, modelos, figuras (~3 min)
-pytest                                                                # 52 tests, sin necesitar el dataset
+pytest                                                                # 101 tests, sin necesitar el dataset
 ```
 
 Salidas: `reports/results.json`, `reports/figures/`, `reports/shap_time_to_failure.csv`; modelos en `data/processed/models/`.
@@ -147,6 +190,9 @@ Salidas: `reports/results.json`, `reports/figures/`, `reports/shap_time_to_failu
 src/data/scania_loader.py       descarga, carga, etiquetas oficiales y matriz de costos
 src/features/engineering.py     features por lectura a partir de contadores acumulados
 src/models/cost_decision.py     decisión de costo esperado mínimo, confusión, métricas de alarma
+src/models/calibration.py       calibración de probabilidades, sensibilidad del ahorro al costo de la visita
+src/site.py                     genera la página de GitHub Pages (docs/index.html)
+docs/                           el sitio de GitHub Pages (generado; no se edita a mano)
 src/models/train_pipeline.py    clasificador, tiempo hasta la falla, Cox, SHAP
 src/models/scorer.py            puntúa un camión a partir de su historial
 src/models/make_figures.py      figuras
