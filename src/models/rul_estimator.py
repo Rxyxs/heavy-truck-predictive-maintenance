@@ -72,7 +72,7 @@ class RulEstimator:
 
     # -- preparacion de variables
     def _fit_scaler(self, df: pd.DataFrame) -> None:
-        self.sensors_ = [c for c in SENSOR_COLUMNS if df[c].std() > 1e-9]
+        self.sensors_ = [c for c in SENSOR_COLUMNS if c in df.columns and df[c].std() > 1e-9]
         if self.n_conditions is None:  # una condicion si los ajustes de operacion casi no varian (FD001, FD003)
             self.n_conditions = 6 if df[OP_COLUMNS].round(1).drop_duplicates().shape[0] > 10 else 1
         self.kmeans_ = (KMeans(self.n_conditions, n_init=10, random_state=SEED).fit(df[OP_COLUMNS])

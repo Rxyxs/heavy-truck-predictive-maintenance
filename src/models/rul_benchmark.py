@@ -5,8 +5,8 @@
 La eleccion entre modelos se hace por validacion cruzada agrupada por motor sobre el entrenamiento; el conjunto de prueba
 solo se mira una vez, con ambos modelos, para informar (no para elegir).
 
-NOTA: ``read_split`` es una lectura minima de los archivos de la NASA para poder correr este benchmark; al integrar,
-conviene reemplazarla por el cargador del proyecto.
+FD001 se carga con ``src.data.cmapss_loader.build_fd001`` (descarga verificada con hash). Ese cargador no cubre
+FD002-FD004, que se leen con ``_read_raw`` desde ``data/raw/cmapss/raw`` (descarga manual del mismo zip de la NASA).
 """
 from __future__ import annotations
 
@@ -19,10 +19,11 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import GroupKFold
 
+from src.data import cmapss_loader
 from src.models.rul_estimator import COLUMNS, RulEstimator, last_rows, nasa_score, rmse, train_rul
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_DATA = ROOT / "data" / "raw" / "cmapss" / "raw"
+RAW_OTHER = ROOT / "data" / "raw" / "cmapss" / "raw"  # FD002-FD004
 OUT_DIR = ROOT / "tmp_agent_b"
 SUBSETS = ["FD001", "FD002", "FD003", "FD004"]
 MODELS = ["lightgbm", "random_forest"]
@@ -30,8 +31,21 @@ CAP = 125
 N_FOLDS = 5
 
 
-def read_split(data_dir: Path, subset: str) -> tuple[pd.DataFrame, pd.DataFrame, np.ndarray]:
+def _load_fd001() -> tuple[pd.DataFrame, pd.DataFrame, np.ndarray]:
+    """FD001 con el cargador del proyecto; la RUL verdadera del ultimo ciclo es ``rul_uncapped`` de ``test_last``."""
+    ds = cmapss_loader.build_fd001()
+    rename = {f"setting_{i}": f"op{i}" for i in (1, 2, 3)}
+    cols = ["unit", "cycle", *rename, *ds.sensor_columns]
+    train, test = ds.train.select(cols).rename(rename).to_pandas(), ds.test.select(cols).rename(rename).to_pandas()
+    rul = ds.test_last.sort("unit")["rul_uncapped"].to_numpy().astype(float)
+    return train, test, rul
+
+
+def read_split(data_dir: Path | None, subset: str) -> tuple[pd.DataFrame, pd.DataFrame, np.ndarray]:
     """(entrenamiento, prueba, RUL verdadera al final de cada motor de prueba)."""
+    if subset == "FD001":
+        return _load_fd001()
+    data_dir = data_dir or RAW_OTHER
     train = pd.read_csv(data_dir / f"train_{subset}.txt", sep=r"\s+", header=None, names=COLUMNS)
     test = pd.read_csv(data_dir / f"test_{subset}.txt", sep=r"\s+", header=None, names=COLUMNS)
     rul = pd.read_csv(data_dir / f"RUL_{subset}.txt", header=None)[0].to_numpy(dtype=float)
@@ -81,7 +95,7 @@ def run_subset(data_dir: Path, subset: str) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA)
+    parser.add_argument("--data-dir", type=Path, default=None, help="solo FD002-FD004")
     parser.add_argument("--subsets", nargs="*", default=SUBSETS)
     args = parser.parse_args()
     result = {"config": {"rul_cap_training": CAP, "window": 10, "cv_folds": N_FOLDS, "models": MODELS,

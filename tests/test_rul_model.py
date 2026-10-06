@@ -10,7 +10,7 @@ import pytest
 from src.models import rul_estimator as R
 
 ROOT = Path(__file__).resolve().parents[1]
-DATA = ROOT / "data" / "raw" / "cmapss" / "raw"
+DATA = ROOT / "data" / "raw" / "cmapss"
 
 
 def synthetic(n_units=30, seed=0):
@@ -122,7 +122,7 @@ def test_unknown_model_kind_fails_loudly():
 def test_fd001_error_beats_a_constant_and_meets_the_expected_threshold():
     from src.models.rul_benchmark import read_split
 
-    train, test, rul_true = read_split(DATA, "FD001")
+    train, test, rul_true = read_split(None, "FD001")
     model = R.RulEstimator("lightgbm", cap=125).fit(train)
     pred = model.predict_last(test).reindex(R.last_rows(test)["unit"]).to_numpy()
     assert (pred >= 0).all() and len(pred) == len(rul_true) == 100
@@ -130,6 +130,18 @@ def test_fd001_error_beats_a_constant_and_meets_the_expected_threshold():
     assert R.rmse(rul_true, pred) < 25.0                     # medido: 18.8
     assert R.rmse(rul_true, pred) < R.rmse(rul_true, baseline) * 0.6
     assert R.nasa_score(rul_true, pred) < R.nasa_score(rul_true, baseline) / 10
+
+
+@pytest.mark.skipif(not (DATA / "train_FD001.txt").exists(), reason="C-MAPSS no descargado (data/raw/cmapss)")
+def test_the_estimator_labels_agree_with_the_project_loader():
+    """El benchmark usa el cargador del proyecto: su RUL recortada y la que calcula el estimador deben coincidir."""
+    from src.data import cmapss_loader
+    from src.models.rul_benchmark import read_split
+
+    ds = cmapss_loader.build_fd001(auto_download=False)
+    train, test, rul_true = read_split(None, "FD001")
+    assert (R.train_rul(train, 125).to_numpy() == ds.train.sort(["unit", "cycle"])["rul"].to_numpy()).all()
+    assert len(rul_true) == 100 and (rul_true == cmapss_loader.read_test_rul()).all()
 
 
 def test_the_exported_metrics_are_consistent_with_themselves():
