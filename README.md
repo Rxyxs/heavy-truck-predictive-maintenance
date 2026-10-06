@@ -150,6 +150,25 @@ The SHAP ranking is led by `time_step`, `n_readouts` and `Spec_7`: the regressio
 | Early-life usage only | 0.673 |
 | Both | **0.704** |
 
+### Remaining useful life on NASA C-MAPSS (a second benchmark, simulated data)
+
+This section is separate from the SCANIA results above. [C-MAPSS](https://www.nasa.gov/intelligent-systems-division/discovery-and-systems-health/pcoe/pcoe-data-set-repository/) is a NASA **simulation of aircraft turbofan engines**, not truck data. I include it because it has a public protocol for remaining useful life (RUL) with an official asymmetric score, so the same approach can be checked against a known yardstick.
+
+Protocol: the label is the number of cycles to failure, capped at 125 **in training only**; the test set is scored on the last observed cycle of each engine against the true RUL in `RUL_FD00x.txt`, with no cap. Features are the current value, the 10-cycle rolling mean and standard deviation and the 10-cycle change of each non-constant sensor, standardised within operating condition (6 clusters in FD002 and FD004), computed from each engine's past only (a test checks that nothing looks ahead). Between LightGBM and Random Forest the choice is made by 5-fold cross-validation grouped by engine on the training set; the test set is looked at once, with both models. The NASA score is `exp(-d/13) - 1` for under-estimates and `exp(d/10) - 1` for over-estimates, with `d` = prediction − true RUL: lower is better, and over-estimating (warning too late) costs more.
+
+| Subset | Engines (train / test) | Constant baseline (RMSE) | LightGBM (RMSE / NASA score) | Random Forest (RMSE / NASA score) | Picked by cross-validation |
+|---|---|---:|---:|---:|---|
+| FD001 (single condition) | 100 / 100 | 43.1 | 19.1 / 896 | 18.8 / 678 | LightGBM |
+| FD002 (6 conditions) | 260 / 259 | 54.1 | 27.6 / 9,233 | 27.9 / 11,091 | LightGBM |
+| FD003 (single condition) | 100 / 100 | 45.1 | 17.9 / 642 | 19.3 / 868 | LightGBM |
+| FD004 (6 conditions) | 249 / 248 | 54.9 | 28.7 / 5,885 | 29.4 / 6,634 | Random Forest |
+
+- **Both models are far better than a constant**, and roughly equivalent to each other: the cross-validated RMSE differs by 0.1 or less in every subset, and the FD004 pick (16.62 vs. 16.63) is a tie.
+- **The subsets with 6 operating conditions are much harder**, and cross-validation does not warn of it: on FD002 the cross-validated RMSE is 17.1 and the test RMSE 27.6. The test set stops engines at an arbitrary cycle, which is harder than the rows of a run-to-failure engine.
+- **This is a plain tabular baseline, not a state-of-the-art model**, and I do not compare it with published results. FD001 goes through the project's loader (`src/data/cmapss_loader.py`, which drops the 7 sensors that are constant or nearly so and verifies the download by hash); the loader covers FD001 only, so FD002–FD004 are read from the NASA files directly.
+
+Reproduce with `python -m src.models.rul_benchmark` (about 5 minutes; FD001 downloads by itself, FD002–FD004 need the NASA files in `data/raw/cmapss/raw`). It writes `tmp_agent_b/rul_metrics.json`, which is not versioned.
+
 ## Limitations
 
 - **Not mining data.** See above; transfer to off-highway mining trucks is an assumption.
@@ -179,7 +198,7 @@ pip install -r requirements.txt
 
 python -c "from src.data.scania_loader import download; download()"   # ~1.65 GB into data/raw/scania
 python -m src.models.train_pipeline                                   # features, models, figures (~3 min)
-pytest                                                                # 101 tests, no dataset needed
+pytest                                                                # 158 tests; the C-MAPSS ones use the NASA files and skip if they are unavailable
 ```
 
 Outputs: `reports/results.json`, `reports/figures/`, `reports/shap_time_to_failure.csv`; models in `data/processed/models/`.
@@ -196,8 +215,11 @@ docs/                           the GitHub Pages site (generated; do not edit by
 src/models/train_pipeline.py    classifier, time to failure, Cox, SHAP
 src/models/scorer.py            score one truck from its history
 src/models/make_figures.py      figures
+src/data/cmapss_loader.py       NASA C-MAPSS FD001: hash-verified download, RUL labels, causal rolling features
+src/models/rul_estimator.py     remaining-useful-life estimator, RMSE and NASA asymmetric score
+src/models/rul_benchmark.py     LightGBM vs. Random Forest on FD001-FD004
 src/api/main.py                 FastAPI service
-tests/                          unit tests on synthetic trucks; none need the real data
+tests/                          unit tests on synthetic trucks (none need the SCANIA data) and on C-MAPSS
 ```
 
 An earlier version of this repository also contained a synthetic data generator, a multi-task PyTorch network and a Streamlit dashboard. I removed them because they depended on the synthetic schema; they remain in the git history.

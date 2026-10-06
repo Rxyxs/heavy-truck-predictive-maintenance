@@ -150,6 +150,25 @@ El ranking SHAP lo encabezan `time_step`, `n_readouts` y `Spec_7`: la regresión
 | Solo uso temprano | 0,673 |
 | Ambas | **0,704** |
 
+### Vida útil restante en NASA C-MAPSS (un segundo benchmark, datos simulados)
+
+Esta sección es aparte de los resultados con SCANIA de arriba. [C-MAPSS](https://www.nasa.gov/intelligent-systems-division/discovery-and-systems-health/pcoe/pcoe-data-set-repository/) es una **simulación de turbofanes de aviones** de la NASA, no datos de camiones. La incluyo porque tiene un protocolo público para la vida útil restante (RUL) con un score asimétrico oficial, así que el mismo enfoque se puede contrastar con una vara conocida.
+
+Protocolo: la etiqueta es el número de ciclos hasta la falla, recortada a 125 **solo en el entrenamiento**; el conjunto de prueba se evalúa en el último ciclo observado de cada motor contra la RUL verdadera de `RUL_FD00x.txt`, sin recorte. Las variables son el valor actual, la media y desviación móviles de 10 ciclos y el cambio en 10 ciclos de cada sensor no constante, estandarizadas dentro de cada condición de operación (6 grupos en FD002 y FD004), calculadas solo con el pasado de cada motor (un test comprueba que nada mira hacia adelante). Entre LightGBM y Random Forest se elige por validación cruzada de 5 particiones agrupada por motor sobre el entrenamiento; el conjunto de prueba se mira una sola vez, con ambos modelos. El score de la NASA es `exp(-d/13) - 1` para subestimaciones y `exp(d/10) - 1` para sobreestimaciones, con `d` = predicción − RUL verdadera: menor es mejor, y sobreestimar (avisar tarde) cuesta más.
+
+| Subconjunto | Motores (train / test) | Constante (RMSE) | LightGBM (RMSE / score NASA) | Random Forest (RMSE / score NASA) | Elegido por validación cruzada |
+|---|---|---:|---:|---:|---|
+| FD001 (una condición) | 100 / 100 | 43,1 | 19,1 / 896 | 18,8 / 678 | LightGBM |
+| FD002 (6 condiciones) | 260 / 259 | 54,1 | 27,6 / 9.233 | 27,9 / 11.091 | LightGBM |
+| FD003 (una condición) | 100 / 100 | 45,1 | 17,9 / 642 | 19,3 / 868 | LightGBM |
+| FD004 (6 condiciones) | 249 / 248 | 54,9 | 28,7 / 5.885 | 29,4 / 6.634 | Random Forest |
+
+- **Ambos modelos son mucho mejores que una constante** y equivalentes entre sí: el RMSE de validación cruzada difiere en 0,1 o menos en cada subconjunto, y la elección en FD004 (16,62 vs. 16,63) es un empate.
+- **Los subconjuntos con 6 condiciones de operación son bastante más difíciles**, y la validación cruzada no lo anticipa: en FD002 el RMSE de validación cruzada es 17,1 y el de prueba 27,6. El conjunto de prueba corta los motores en un ciclo arbitrario, lo que es más difícil que las filas de un motor corrido hasta la falla.
+- **Es una línea base tabular simple, no un modelo de última generación**, y no la comparo con resultados publicados. FD001 pasa por el cargador del proyecto (`src/data/cmapss_loader.py`, que descarta los 7 sensores constantes o casi, y verifica la descarga por hash); el cargador cubre solo FD001, así que FD002–FD004 se leen directamente de los archivos de la NASA.
+
+Se reproduce con `python -m src.models.rul_benchmark` (unos 5 minutos; FD001 se descarga solo, FD002–FD004 necesitan los archivos de la NASA en `data/raw/cmapss/raw`). Escribe `tmp_agent_b/rul_metrics.json`, que no se versiona.
+
 ## Limitaciones
 
 - **No son datos mineros.** Ver arriba; la transferencia a camiones de extracción fuera de ruta es un supuesto.
@@ -179,7 +198,7 @@ pip install -r requirements.txt
 
 python -c "from src.data.scania_loader import download; download()"   # ~1,65 GB en data/raw/scania
 python -m src.models.train_pipeline                                   # features, modelos, figuras (~3 min)
-pytest                                                                # 101 tests, sin necesitar el dataset
+pytest                                                                # 158 tests; los de C-MAPSS usan los archivos de la NASA y se omiten si no están
 ```
 
 Salidas: `reports/results.json`, `reports/figures/`, `reports/shap_time_to_failure.csv`; modelos en `data/processed/models/`.
@@ -196,8 +215,11 @@ docs/                           el sitio de GitHub Pages (generado; no se edita 
 src/models/train_pipeline.py    clasificador, tiempo hasta la falla, Cox, SHAP
 src/models/scorer.py            puntúa un camión a partir de su historial
 src/models/make_figures.py      figuras
+src/data/cmapss_loader.py       NASA C-MAPSS FD001: descarga verificada por hash, etiquetas de RUL, variables móviles causales
+src/models/rul_estimator.py     estimador de vida útil restante, RMSE y score asimétrico de la NASA
+src/models/rul_benchmark.py     LightGBM vs. Random Forest en FD001-FD004
 src/api/main.py                 servicio FastAPI
-tests/                          tests unitarios sobre camiones sintéticos; ninguno necesita los datos reales
+tests/                          tests unitarios sobre camiones sintéticos (ninguno necesita los datos de SCANIA) y sobre C-MAPSS
 ```
 
 Una versión anterior de este repositorio también contenía un generador de datos sintéticos, una red multitarea en PyTorch y un dashboard en Streamlit. Los eliminé porque dependían del esquema sintético; siguen en el historial de git.
