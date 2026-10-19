@@ -1,6 +1,6 @@
 # Mantenimiento predictivo con datos reales de camiones pesados (SCANIA Component X)
 
-Español · [English version](README.md)
+[[English](README.md) ] | [Español ]
 
 ![tests](https://github.com/Rxyxs/heavy-truck-predictive-maintenance/actions/workflows/ci.yml/badge.svg)
 ![python](https://img.shields.io/badge/python-3.10%20%7C%203.11-blue)
