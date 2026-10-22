@@ -8,7 +8,13 @@ la edad del camion que su estado, asi que se transforma en:
 * ``win_rate_*``    : uso por unidad de tiempo en las ultimas ``WINDOW`` lecturas.
 * ``life_frac_*``   : en variables de histograma, fraccion de cada bin sobre su total historico.
 * ``recent_frac_*`` : lo mismo pero solo con el incremento de la ventana reciente.
+* ``rel_rate_*``    : ``win_rate / life_rate``, intensidad reciente relativa a la de toda la vida.
 * ``n_readouts``, ``dt_prev``: cuantas lecturas hay y hace cuanto fue la anterior.
+
+**Escala distinta por conjunto.** Cada variable viene multiplicada por un factor propio que ademas cambia
+entre train, validacion y test (la variable 272 vale ~0,15 veces en validacion lo que vale en train; la 397,
+~3,8 veces). Las tasas ``life_rate`` y ``win_rate`` heredan ese factor; las fracciones de histograma y
+``rel_rate`` no, porque el factor se cancela dentro de la variable. ``scale_invariant`` devuelve ese subconjunto.
 
 Cada feature de la lectura ``t`` usa unicamente lecturas ``<= t`` del mismo vehiculo, de modo
 que el calculo sobre la historia completa de train coincide con el que veria un modelo en
@@ -24,6 +30,8 @@ import polars as pl
 ID_COLUMNS = ["vehicle_id", "time_step"]
 WINDOW = 5
 EPS = 1e-9
+INVARIANT_PREFIXES = ("life_frac_", "recent_frac_", "rel_rate_")
+TIME_FEATURES = ["time_step", "n_readouts", "dt_prev"]
 
 
 def variable_groups(columns: list[str]) -> dict[str, list[str]]:
@@ -41,7 +49,7 @@ def feature_names(columns: list[str]) -> list[str]:
     groups = variable_groups(columns)
     for cols in groups.values():
         for c in cols:
-            names += [f"life_rate_{c}", f"win_rate_{c}"]
+            names += [f"life_rate_{c}", f"win_rate_{c}", f"rel_rate_{c}"]
         if len(cols) > 1:
             for c in cols:
                 names += [f"life_frac_{c}", f"recent_frac_{c}"]
@@ -71,8 +79,11 @@ def engineer_features(readouts: pl.DataFrame, window: int = WINDOW) -> pl.DataFr
         for c in var_cols:
             x = pl.col(c)
             x_back = pl.coalesce([x.shift(window).over(vid), x.first().over(vid)])
-            exprs.append((x / t.clip(lower_bound=1.0)).alias(f"life_rate_{c}"))
-            exprs.append(pl.when(span > EPS).then((x - x_back) / span).otherwise(None).alias(f"win_rate_{c}"))
+            life = x / t.clip(lower_bound=1.0)
+            win = pl.when(span > EPS).then((x - x_back) / span).otherwise(None)
+            exprs.append(life.alias(f"life_rate_{c}"))
+            exprs.append(win.alias(f"win_rate_{c}"))
+            exprs.append(pl.when(life.abs() > EPS).then(win / life).otherwise(None).alias(f"rel_rate_{c}"))
         if len(var_cols) > 1:
             total = pl.sum_horizontal(var_cols)
             recent_total = pl.sum_horizontal(
@@ -90,6 +101,11 @@ def engineer_features(readouts: pl.DataFrame, window: int = WINDOW) -> pl.DataFr
     # time_step queda en Float64: es la llave de union con las etiquetas y Float32 la corrompe.
     float_cols = [c for c in out.columns if c not in (vid, "n_readouts", "time_step")]
     return out.with_columns([pl.col(c).cast(pl.Float32) for c in float_cols])
+
+
+def scale_invariant(columns: list[str]) -> list[str]:
+    """Features que no cambian si una variable se multiplica por una constante: tiempo, fracciones y ``rel_rate``."""
+    return [c for c in columns if c in TIME_FEATURES or c.startswith(INVARIANT_PREFIXES)]
 
 
 def last_readout_per_vehicle(features: pl.DataFrame) -> pl.DataFrame:

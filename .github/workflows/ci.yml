@@ -39,6 +39,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          # PyTorch de CPU: el runner no tiene GPU y la rueda con CUDA pesa varios GB
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           if [ -f pyproject.toml ]; then pip install -e . || pip install .; fi
           pip install pytest flake8

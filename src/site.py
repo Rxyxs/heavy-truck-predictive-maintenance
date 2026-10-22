@@ -1,9 +1,10 @@
-"""Genera la pagina de GitHub Pages (``docs/index.html``) a partir de ``results.json`` y de las
-probabilidades por camion (``reports/predictions.csv``).
+"""Genera la pagina de GitHub Pages (``docs/index.html``) a partir de los resultados versionados.
 
-La pagina recalcula en el navegador la decision de costo esperado minimo con el costo de una visita
-a taller que elija el lector. Para eso incrusta las probabilidades de los camiones de validacion y
-test; todo lo demas sale de ``results.json``, asi que no puede desincronizarse del README.
+La pagina recalcula en el navegador la decision de costo esperado minimo de SCANIA Component X con el costo de
+una visita a taller que elija el lector, para el mismo LightGBM con dos conjuntos de features: invariantes a la
+escala y en escala cruda (la version anterior). Incrusta sus probabilidades por camion
+(``reports/scania/predictions.csv``); todo lo demas sale de los ``results.json``, asi que no puede
+desincronizarse del README.
 
     python -m src.site
 """
@@ -13,84 +14,124 @@ import json
 import shutil
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from src.data.scania_loader import COST_MATRIX
+from src.models import calibration as K
 
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = Path(__file__).with_name("site_template.html")
-RESULTS_JSON = ROOT / "reports" / "results.json"
-PREDICTIONS_CSV = ROOT / "reports" / "predictions.csv"
-FIGURES_DIR = ROOT / "reports" / "figures"
+REPORTS = ROOT / "reports"
+RESULTS_JSON = REPORTS / "scania" / "results.json"
+PREDICTIONS_CSV = REPORTS / "scania" / "predictions.csv"
+FIGURES_DIR = REPORTS / "figures"
 DOCS_DIR = ROOT / "docs"
-FIGURES_USED = ["02_matriz_confusion.png", "03_shap_tiempo_restante.png"]
+LANGS = ("en", "es")
+FIGURES_USED = ["overview.png", "scania_scale_shift.png", "scania_models.png", "scania_confusion.png", "scania_shap.png"]
 PROB_SCALE = 1_000_000  # las probabilidades viajan como enteros: son mas cortas que los decimales
 SPLITS = ("validation", "test")
-
-
-def _saving(rules: dict) -> float:
-    """Ahorro del costo esperado minimo frente a no recomendar nada, en %."""
-    return 100.0 * (1.0 - rules["costo_esperado_minimo"]["costo_total"] / rules["siempre_sano"]["costo_total"])
-
-
-def _saving_at_one(sensitivity: list[dict]) -> float:
-    """Ahorro (%) con la visita al costo del reto (k = 1) dentro de una tabla de sensibilidad."""
-    return round(next(row["ahorro_pct"] for row in sensitivity if row["k"] == 1.0), 2)
+MODEL_ORDER = ["logistic", "random_forest", "lightgbm", "xgboost", "catboost", "mlp", "ensemble", "lightgbm_escala_cruda"]
 
 
 def _calibration_rows(rows: list[dict]) -> list[dict]:
-    return [{"desde": r["desde"], "hasta": r["hasta"], "n": r["n"], "predicho": round(r["predicho"], 4), "observado": round(r["observado"], 4)} for r in rows]
+    return [{"desde": r["desde"], "hasta": r["hasta"], "n": r["n"], "predicho": round(r["predicho"], 4),
+             "observado": round(r["observado"], 4)} for r in rows]
+
+
+def _round(v, d=2):
+    return None if v is None else round(float(v), d)
+
+
+def _other_datasets() -> dict:
+    out = {}
+    path = REPORTS / "aps" / "results.json"
+    if path.exists():
+        r = json.loads(path.read_text(encoding="utf-8"))
+        sel = r["selected_by_oof"]
+        out["aps"] = {"model": sel, "cost": r["models"][sel]["test"]["cost"], "ci": r["models"][sel]["test"]["cost_ci95"],
+                      "winner": r["ida2016_podium"][0]["cost"], "nothing": r["baselines"]["no_alarms"],
+                      "trucks": r["data"]["train_trucks"] + r["data"]["test_trucks"]}
+    path = REPORTS / "cmapss" / "results.json"
+    if path.exists():
+        r = json.loads(path.read_text(encoding="utf-8"))
+        out["cmapss"] = {s: {"model": d["selected_by_cv"], "rmse": round(d["selected_test"]["rmse"], 1),
+                             "baseline": round(d["baseline_constant"]["rmse"], 1)} for s, d in r["subsets"].items()}
+    path = REPORTS / "metropt" / "results.json"
+    if path.exists():
+        r = json.loads(path.read_text(encoding="utf-8"))
+        ae = r["detectors"].get("autoencoder__absolute")
+        if ae:
+            out["metropt"] = {"detected": ae["detected_2h"], "chance": ae["chance_detected_2h"],
+                              "fa_week": ae["false_alarms_per_week"]}
+    return out
 
 
 def build_data(results: dict, predictions: pd.DataFrame) -> dict:
     clf = results["clasificador"]
-    val, test = clf["validation"], clf["test"]
+    selected = results["seleccionado"]
+    models = results["modelos"]
+    raw_key, lgb_key = "lightgbm_escala_cruda", "lightgbm"
     ttf = results["tiempo_restante"]
 
-    pred = {}
+    pred, calibration = {}, {}
     for split in SPLITS:
         part = predictions[predictions["split"] == split].reset_index(drop=True)
         if len(part) != clf[split]["n_vehiculos"]:
             raise ValueError(f"{split}: {len(part)} filas en predictions.csv, pero results.json dice {clf[split]['n_vehiculos']}")
-        probs = part[[f"p{k}" for k in range(5)]].to_numpy()
-        pred[split] = {
-            "y": part["class_label"].astype(int).tolist(),
-            "p": [int(round(v * PROB_SCALE)) for v in probs.ravel()],
-        }
+        y = part["class_label"].astype(int).to_numpy()
+        pred[split] = {"y": y.tolist()}
+        for field in ("l", "r"):
+            probs = part[[f"{field}{k}" for k in range(5)]].to_numpy()
+            pred[split][field] = [int(round(v * PROB_SCALE)) for v in probs.ravel()]
+        calibration[split] = {mode: _calibration_rows(K.calibration_table(y, part[[f"{field}{k}" for k in range(5)]].to_numpy()))
+                              for mode, field in (("lgb", "l"), ("raw", "r"))}
 
+    table = []
+    for key in [k for k in MODEL_ORDER if k in models]:
+        m = models[key]
+        table.append({"key": key, "select": m["seleccion"]["costo_por_1000_camiones"],
+                      **{f"{s[:3]}_{f}": m[s][f] for s in SPLITS for f in ("ahorro_pct", "ahorro_ic95", "riesgo_medio_predicho")},
+                      "val_be": _round(m["validation"]["costo_visita_equilibrio"]), "tes_be": _round(m["test"]["costo_visita_equilibrio"])})
+
+    adv = results["escala"]["validacion_adversarial"]
+    factors = [f for f in results["escala"]["factor_por_variable"] if f["validation"] and f["test"]]
+    surv = results["supervivencia"]["modelos_covariables_ambas"]
     return {
         "cost_matrix": COST_MATRIX,
+        "selected": selected,
         "pred": pred,
-        "platt": clf["platt"],
-        "calibration": {s: _calibration_rows(clf[s]["calibracion_tabla"]) for s in SPLITS},
-        "cal_summary": {
-            s: {
-                "pred": round(clf[s]["calibracion_global"]["riesgo_medio_predicho"], 4),
-                "obs": round(clf[s]["calibracion_global"]["tasa_observada"], 4),
-                "top_obs": round(clf[s]["calibracion_tabla"][-1]["observado"], 4),
-            }
-            for s in SPLITS
+        "calibration": calibration,
+        "models": table,
+        "scale": {
+            "adv_raw": {k: v["auc"] for k, v in adv["todas"].items()},
+            "adv_inv": {k: v["auc"] for k, v in adv["invariantes"].items()},
+            "min": min(min(f["validation"], f["test"]) for f in factors),
+            "max": max(max(f["validation"], f["test"]) for f in factors),
+            "n_vars": len(factors),
         },
         "key": {
-            "saving_val": round(_saving(val), 2), "saving_test": round(_saving(test), 2),
-            "auc_test": round(test["auc_algun_riesgo"], 2),
             "trucks_train": results["datos"]["vehiculos_train"], "fails_train": results["datos"]["reparaciones_train"],
-            "n_val": val["n_vehiculos"], "n_test": test["n_vehiculos"],
-            "fails_val": val["costo_esperado_minimo"]["fallas_reales"], "fails_test": test["costo_esperado_minimo"]["fallas_reales"],
-            "recall_val": round(val["costo_esperado_minimo"]["recall_alarma"], 4),
-            "recall_test": round(test["costo_esperado_minimo"]["recall_alarma"], 4),
-            "cost_val": val["costo_esperado_minimo"]["costo_total"], "cost_test": test["costo_esperado_minimo"]["costo_total"],
-            "nothing_val": val["siempre_sano"]["costo_total"], "nothing_test": test["siempre_sano"]["costo_total"],
-            "be_val": round(val["costo_visita_equilibrio"], 2), "be_test": round(test["costo_visita_equilibrio"], 2),
-            "recal_saving_val": _saving_at_one(val["recalibrado_con_el_otro_conjunto"]["sensibilidad_costo_visita"]),
-            "recal_saving_test": _saving_at_one(test["recalibrado_con_el_otro_conjunto"]["sensibilidad_costo_visita"]),
-            "recal_be_val": round(val["recalibrado_con_el_otro_conjunto"]["costo_visita_equilibrio"], 2),
-            "recal_be_test": round(test["recalibrado_con_el_otro_conjunto"]["costo_visita_equilibrio"], 2),
+            "n_val": clf["validation"]["n_vehiculos"], "n_test": clf["test"]["n_vehiculos"],
+            "fails_val": clf["validation"]["costo_esperado_minimo"]["fallas_reales"],
+            "fails_test": clf["test"]["costo_esperado_minimo"]["fallas_reales"],
+            "auc_test": round(clf["test"]["auc_algun_riesgo"], 2),
+            **{f"{s[:3]}_{k}": v for s in SPLITS for k, v in {
+                "saving": models[selected][s]["ahorro_pct"], "ci": models[selected][s]["ahorro_ic95"],
+                "be": _round(models[selected][s]["costo_visita_equilibrio"]), "be_raw": _round(models[raw_key][s]["costo_visita_equilibrio"]),
+                "be_lgb": _round(models[lgb_key][s]["costo_visita_equilibrio"]),
+                "saving_raw": models[raw_key][s]["ahorro_pct"], "saving_lgb": models[lgb_key][s]["ahorro_pct"],
+                "risk": models[selected][s]["riesgo_medio_predicho"], "risk_raw": models[raw_key][s]["riesgo_medio_predicho"],
+                "risk_lgb": models[lgb_key][s]["riesgo_medio_predicho"],
+                "obs": models[selected][s]["tasa_observada"],
+                "recall": models[selected][s]["recall_alarma"], "recall_raw": models[raw_key][s]["recall_alarma"],
+                "fa": models[selected][s]["tasa_falsa_alarma"], "fa_raw": models[raw_key][s]["tasa_falsa_alarma"],
+            }.items()},
         },
-        "ttf": {
-            "mae": round(ttf["mae"], 2), "mae_base": round(ttf["mae_baseline_mediana"], 2),
-            "mae48": round(ttf["mae_ultimas_48"], 2), "mae48_base": round(ttf["mae_ultimas_48_baseline"], 2),
-        },
+        "ttf": {"mae": round(ttf["mae"], 2), "mae_base": round(ttf["mae_baseline_mediana"], 2),
+                "mae48": round(ttf["mae_ultimas_48"], 2), "mae48_base": round(ttf["mae_ultimas_48_baseline"], 2)},
+        "survival": {k: round(v, 3) for k, v in surv.items()},
+        "others": _other_datasets(),
     }
 
 
@@ -109,13 +150,22 @@ def build_site(docs_dir: Path = DOCS_DIR, results_json: Path = RESULTS_JSON, pre
     out.write_text(render(build_data(results, predictions)), encoding="utf-8")
     (docs_dir / ".nojekyll").write_text("", encoding="utf-8")
     target = docs_dir / "figures"
-    target.mkdir(exist_ok=True)
-    for name in FIGURES_USED:
-        shutil.copy2(figures_dir / name, target / name)
+    if target.exists():
+        shutil.rmtree(target)
+    for lang in LANGS:
+        (target / lang).mkdir(parents=True, exist_ok=True)
+        for name in FIGURES_USED:
+            shutil.copy2(figures_dir / lang / name, target / lang / name)
     return out
+
+
+def decode(data: dict, split: str, field: str = "p") -> tuple[np.ndarray, np.ndarray]:
+    """Etiquetas y probabilidades de un conjunto tal como las ve la pagina (para pruebas)."""
+    y = np.array(data["pred"][split]["y"])
+    p = np.array(data["pred"][split][field], dtype=float).reshape(-1, 5) / PROB_SCALE
+    return y, p
 
 
 if __name__ == "__main__":
     path = build_site()
     print(f"{path} ({path.stat().st_size / 1024:.0f} KB)")
-

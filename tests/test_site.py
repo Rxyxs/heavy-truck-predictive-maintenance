@@ -1,9 +1,10 @@
-"""La pagina de GitHub Pages se genera desde results.json y predictions.csv. Sin red ni navegador."""
+"""La pagina de GitHub Pages se genera desde los results.json y predictions.csv versionados. Sin red ni navegador."""
 import json
 import re
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from src import site
@@ -23,21 +24,21 @@ def built(tmp_path_factory):
 
 @pytest.fixture(scope="module")
 def results():
-    return json.loads((ROOT / "reports" / "results.json").read_text(encoding="utf-8"))["clasificador"]
-
-
-def decode(data, split):
-    y = np.array(data["pred"][split]["y"])
-    p = np.array(data["pred"][split]["p"], dtype=float).reshape(-1, 5) / site.PROB_SCALE
-    return y, p
+    return json.loads(site.RESULTS_JSON.read_text(encoding="utf-8"))
 
 
 # --------------------------------------------------------------------------- archivos
-def test_the_page_is_written_with_its_assets(built):
+def test_the_page_is_written_with_its_figures_in_both_languages(built):
     docs, html, _ = built
     assert (docs / "index.html").exists() and (docs / ".nojekyll").exists()
-    assert {p.name for p in (docs / "figures").glob("*.png")} == set(site.FIGURES_USED)
+    for lang in site.LANGS:
+        assert {p.name for p in (docs / "figures" / lang).glob("*.png")} == set(site.FIGURES_USED)
     assert "__DATA__" not in html
+
+
+def test_every_figure_the_page_asks_for_is_published():
+    used = set(re.findall(r'data-fig="([^"]+)"', site.TEMPLATE.read_text(encoding="utf-8")))
+    assert used == set(site.FIGURES_USED)
 
 
 def test_embedded_data_is_strict_json(built):
@@ -60,91 +61,76 @@ def test_the_page_has_no_external_scripts_or_styles():
 
 
 # ---------------------------------------------------------------- datos incrustados
-def test_every_truck_has_five_probabilities_that_sum_to_one(built):
+@pytest.mark.parametrize("field", ["l", "r"])
+def test_every_truck_has_five_probabilities_that_sum_to_one(built, field):
     _, _, data = built
     for split in site.SPLITS:
-        y, p = decode(data, split)
+        y, p = site.decode(data, split, field)
         assert len(y) == len(p) and p.shape[1] == 5
         assert np.abs(p.sum(axis=1) - 1.0).max() < 5e-4
         assert set(y.tolist()) <= {0, 1, 2, 3, 4}
 
 
-def test_the_row_count_matches_results_json(built, results):
-    _, _, data = built
-    for split in site.SPLITS:
-        assert len(data["pred"][split]["y"]) == results[split]["n_vehiculos"]
-
-
 def test_the_row_count_mismatch_is_rejected(results):
-    import pandas as pd
-
     preds = pd.read_csv(site.PREDICTIONS_CSV)
     with pytest.raises(ValueError, match="filas"):
-        site.build_data({"clasificador": results, "datos": {}, "tiempo_restante": {}}, preds.iloc[:-5])
-
-
-# ----------------------------------------------- la logica de la pagina, en Python
-def page_saving(data, split, k, recal):
-    """Reimplementacion en Python de lo que la pagina calcula en el navegador, sobre los datos incrustados."""
-    y, p = decode(data, split)
-    if recal:
-        other = "validation" if split == "test" else "test"
-        p = K.apply_platt(p, data["platt"][other]["a"], data["platt"][other]["b"])
-    return K.saving_at(y, p, k)
+        site.build_data(results, preds.iloc[:-5])
 
 
 @pytest.mark.parametrize("split", ["validation", "test"])
-def test_the_embedded_data_reproduces_the_official_costs(built, results, split):
+@pytest.mark.parametrize("field,key", [("l", "lightgbm"), ("r", "lightgbm_escala_cruda")])
+def test_the_embedded_data_reproduces_the_official_costs(built, results, split, field, key):
     _, _, data = built
-    out = page_saving(data, split, 1.0, recal=False)
-    assert out["costo_politica"] == results[split]["costo_esperado_minimo"]["costo_total"]
-    assert out["costo_nada"] == results[split]["siempre_sano"]["costo_total"]
+    y, p = site.decode(data, split, field)
+    out = K.saving_at(y, p, 1.0)
+    model = results["modelos"][key][split]
+    assert out["costo_politica"] == model["costo"]
+    assert out["costo_nada"] == model["costo_no_hacer_nada"]
+
+
+def test_the_selected_model_file_reproduces_the_reported_costs(results):
+    preds = pd.read_csv(site.PREDICTIONS_CSV)
+    for split in site.SPLITS:
+        d = preds[preds["split"] == split]
+        out = K.saving_at(d["class_label"].to_numpy(), d[[f"p{k}" for k in range(5)]].to_numpy(), 1.0)
+        assert out["costo_politica"] == results["clasificador"][split]["costo_esperado_minimo"]["costo_total"]
 
 
 @pytest.mark.parametrize("split", ["validation", "test"])
-def test_the_page_recalibrated_saving_matches_the_pipeline(built, results, split):
+@pytest.mark.parametrize("field,key", [("l", "lightgbm"), ("r", "lightgbm_escala_cruda")])
+def test_the_page_saving_curves_match_the_pipeline(built, results, split, field, key):
     _, _, data = built
-    reported = results[split]["recalibrado_con_el_otro_conjunto"]["sensibilidad_costo_visita"]
-    for row in reported:
-        mine = page_saving(data, split, row["k"], recal=True)["ahorro_pct"]
-        assert mine == pytest.approx(row["ahorro_pct"], abs=0.3), (split, row["k"])
-
-
-@pytest.mark.parametrize("split", ["validation", "test"])
-def test_the_page_raw_saving_curve_matches_the_pipeline(built, results, split):
-    _, _, data = built
-    for row in results[split]["sensibilidad_costo_visita"]:
-        assert page_saving(data, split, row["k"], recal=False)["ahorro_pct"] == pytest.approx(row["ahorro_pct"], abs=0.05)
+    y, p = site.decode(data, split, field)
+    model = results["modelos"][key][split]
+    for row in model["sensibilidad"]:
+        assert K.saving_at(y, p, row["k"])["ahorro_pct"] == pytest.approx(row["ahorro_pct"], abs=0.05), (split, field, row["k"])
 
 
 def test_key_numbers_come_from_the_results_file(built, results):
     _, _, data = built
-    k = data["key"]
-    assert k["cost_val"] == results["validation"]["costo_esperado_minimo"]["costo_total"]
-    assert k["cost_test"] == results["test"]["costo_esperado_minimo"]["costo_total"]
-    assert k["saving_val"] == pytest.approx(100 * (1 - 41141 / 57400), abs=0.01)
-    assert k["be_val"] == round(results["validation"]["costo_visita_equilibrio"], 2)
-    assert k["recal_saving_test"] == pytest.approx(
-        next(r["ahorro_pct"] for r in results["test"]["recalibrado_con_el_otro_conjunto"]["sensibilidad_costo_visita"] if r["k"] == 1.0), abs=0.01
-    )
+    k, sel = data["key"], results["modelos"][results["seleccionado"]]
+    assert k["val_saving"] == sel["validation"]["ahorro_pct"] and k["tes_saving"] == sel["test"]["ahorro_pct"]
+    assert k["val_be"] == round(sel["validation"]["costo_visita_equilibrio"], 2)
+    assert k["tes_be_raw"] == round(results["modelos"]["lightgbm_escala_cruda"]["test"]["costo_visita_equilibrio"], 2)
+    assert [m["key"] for m in data["models"]][-1] == "lightgbm_escala_cruda"
 
 
-def test_calibration_table_is_embedded_for_both_sets(built):
+def test_calibration_tables_cover_every_truck_for_both_models(built):
     _, _, data = built
     for split in site.SPLITS:
-        rows = data["calibration"][split]
-        assert sum(r["n"] for r in rows) == len(data["pred"][split]["y"])
-        assert data["cal_summary"][split]["pred"] > 2 * data["cal_summary"][split]["obs"]
+        for model in ("lgb", "raw"):
+            assert sum(r["n"] for r in data["calibration"][split][model]) == len(data["pred"][split]["y"])
 
 
 # ------------------------------------------------------------- coherencia con el README
-def test_page_figures_appear_in_the_readme(built):
+def test_page_numbers_appear_in_the_readme(built):
     _, _, data = built
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
     k = data["key"]
-    for text in (f"{k['cost_val']:,}", f"{k['cost_test']:,}", f"{k['be_val']:.2f}", f"{k['be_test']:.2f}",
-                 f"{k['recal_be_val']:.2f}", f"{k['recal_be_test']:.2f}"):
-        assert text in readme, text
+    for readme in ("README.md", "README.es.md"):
+        text = (ROOT / readme).read_text(encoding="utf-8")
+        sep = "," if readme == "README.es.md" else "."
+        for v in (k["val_be"], k["tes_be"], k["val_be_raw"], k["tes_be_raw"], k["val_be_lgb"], k["tes_be_lgb"]):
+            assert f"×{v:.2f}".replace(".", sep) in text, (readme, v)
 
 
 # --------------------------------------------------------------------------- textos
@@ -152,7 +138,7 @@ def _i18n_keys(template, lang):
     start = template.index(f"  {lang}: {{")
     end = template.index("\n  }", start)  # cierre del bloque del idioma (dos espacios de sangria)
     # varias claves comparten linea ("link_repo: ..., link_readme: ..."): se aceptan al inicio o tras una coma
-    return set(re.findall(r'(?:^\s{4}|,\s)([a-z0-9_]+):\s*["\[]', template[start:end], re.M))
+    return set(re.findall(r'(?:^\s{4}|,\s)([a-z0-9_]+):\s*["\[{]', template[start:end], re.M))
 
 
 def test_both_languages_define_the_same_keys():

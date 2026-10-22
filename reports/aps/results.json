@@ -1,0 +1,334 @@
+{
+  "data": {
+    "train_trucks": 60000,
+    "train_failures": 1000,
+    "test_trucks": 16000,
+    "test_failures": 375,
+    "features": 247,
+    "missing_share": 0.0833
+  },
+  "protocol": {
+    "cv_folds": 5,
+    "early_stopping_fraction": 0.15,
+    "cost_false_alarm": 10,
+    "cost_missed": 500,
+    "threshold": "minimum cost on out-of-fold train predictions",
+    "selection": "lowest out-of-fold cost",
+    "ensemble": [
+      "lightgbm",
+      "xgboost",
+      "catboost"
+    ]
+  },
+  "baselines": {
+    "no_alarms": 187500,
+    "alarm_everyone": 156250
+  },
+  "ida2016_podium": [
+    {
+      "team": "Costa & Nascimento",
+      "cost": 9920,
+      "false_alarms": 542,
+      "missed": 9
+    },
+    {
+      "team": "Gondek, Hafner & Sampson",
+      "cost": 10900,
+      "false_alarms": 490,
+      "missed": 12
+    },
+    {
+      "team": "Garnaik, Das, Sreepada & Patra",
+      "cost": 11480,
+      "false_alarms": 398,
+      "missed": 15
+    }
+  ],
+  "models": {
+    "logistic": {
+      "threshold_from_oof": 0.33530418472778994,
+      "oof": {
+        "cost": 51570,
+        "roc_auc": 0.9833711016949154,
+        "pr_auc": 0.7866476974483214
+      },
+      "test": {
+        "cost": 11310,
+        "cost_ci95": [
+          8439,
+          14720
+        ],
+        "false_alarms": 631,
+        "missed": 10,
+        "recall": 0.9733333333333334,
+        "roc_auc": 0.991426048,
+        "pr_auc": 0.8441870039090075
+      },
+      "not_valid_threshold_tuned_on_test": {
+        "cost": 10870
+      },
+      "seconds": 41.2,
+      "fold_info": [
+        {
+          "iterations": 291
+        },
+        {
+          "iterations": 277
+        },
+        {
+          "iterations": 300
+        },
+        {
+          "iterations": 227
+        },
+        {
+          "iterations": 308
+        }
+      ]
+    },
+    "random_forest": {
+      "threshold_from_oof": 0.05870645184096878,
+      "oof": {
+        "cost": 42120,
+        "roc_auc": 0.986228127118644,
+        "pr_auc": 0.8560046285380466
+      },
+      "test": {
+        "cost": 9400,
+        "cost_ci95": [
+          6840,
+          12070
+        ],
+        "false_alarms": 590,
+        "missed": 7,
+        "recall": 0.9813333333333333,
+        "roc_auc": 0.9953316693333334,
+        "pr_auc": 0.8992948078096468
+      },
+      "not_valid_threshold_tuned_on_test": {
+        "cost": 9300
+      },
+      "seconds": 138.0,
+      "fold_info": [
+        {
+          "trees": 400
+        },
+        {
+          "trees": 400
+        },
+        {
+          "trees": 400
+        },
+        {
+          "trees": 400
+        },
+        {
+          "trees": 400
+        }
+      ]
+    },
+    "lightgbm": {
+      "threshold_from_oof": 0.2212292360155859,
+      "oof": {
+        "cost": 43050,
+        "roc_auc": 0.9863929491525424,
+        "pr_auc": 0.8037094304595026
+      },
+      "test": {
+        "cost": 10290,
+        "cost_ci95": [
+          7040,
+          13680
+        ],
+        "false_alarms": 479,
+        "missed": 11,
+        "recall": 0.9706666666666667,
+        "roc_auc": 0.995519488,
+        "pr_auc": 0.8809044418355064
+      },
+      "not_valid_threshold_tuned_on_test": {
+        "cost": 9560
+      },
+      "seconds": 13.2,
+      "fold_info": [
+        {
+          "best_iteration": 61
+        },
+        {
+          "best_iteration": 73
+        },
+        {
+          "best_iteration": 76
+        },
+        {
+          "best_iteration": 60
+        },
+        {
+          "best_iteration": 56
+        }
+      ]
+    },
+    "xgboost": {
+      "threshold_from_oof": 0.2014056295156479,
+      "oof": {
+        "cost": 44140,
+        "roc_auc": 0.9852501355932203,
+        "pr_auc": 0.8193504725214735
+      },
+      "test": {
+        "cost": 10340,
+        "cost_ci95": [
+          7250,
+          13630
+        ],
+        "false_alarms": 534,
+        "missed": 10,
+        "recall": 0.9733333333333334,
+        "roc_auc": 0.9943478613333333,
+        "pr_auc": 0.870753995758194
+      },
+      "not_valid_threshold_tuned_on_test": {
+        "cost": 9560
+      },
+      "seconds": 30.7,
+      "fold_info": [
+        {
+          "best_iteration": 60
+        },
+        {
+          "best_iteration": 68
+        },
+        {
+          "best_iteration": 89
+        },
+        {
+          "best_iteration": 66
+        },
+        {
+          "best_iteration": 75
+        }
+      ]
+    },
+    "catboost": {
+      "threshold_from_oof": 0.3145181761784204,
+      "oof": {
+        "cost": 42970,
+        "roc_auc": 0.9867387203389831,
+        "pr_auc": 0.8036803455923804
+      },
+      "test": {
+        "cost": 9670,
+        "cost_ci95": [
+          7370,
+          12270
+        ],
+        "false_alarms": 667,
+        "missed": 6,
+        "recall": 0.984,
+        "roc_auc": 0.9947127466666666,
+        "pr_auc": 0.8756188800329517
+      },
+      "not_valid_threshold_tuned_on_test": {
+        "cost": 9000
+      },
+      "seconds": 27.2,
+      "fold_info": [
+        {
+          "best_iteration": 62
+        },
+        {
+          "best_iteration": 93
+        },
+        {
+          "best_iteration": 135
+        },
+        {
+          "best_iteration": 115
+        },
+        {
+          "best_iteration": 83
+        }
+      ]
+    },
+    "mlp": {
+      "threshold_from_oof": 0.6085708141326904,
+      "oof": {
+        "cost": 48760,
+        "roc_auc": 0.9833214576271186,
+        "pr_auc": 0.7220887199766272
+      },
+      "test": {
+        "cost": 13630,
+        "cost_ci95": [
+          9760,
+          17940
+        ],
+        "false_alarms": 513,
+        "missed": 17,
+        "recall": 0.9546666666666667,
+        "roc_auc": 0.9923653973333333,
+        "pr_auc": 0.8376481835688112
+      },
+      "not_valid_threshold_tuned_on_test": {
+        "cost": 11820
+      },
+      "seconds": 296.9,
+      "fold_info": [
+        {
+          "best_epoch": 6,
+          "epochs_run": 100,
+          "val_loss_best": 0.16911453497048853,
+          "n_inputs": 492
+        },
+        {
+          "best_epoch": 3,
+          "epochs_run": 100,
+          "val_loss_best": 0.13520870320110148,
+          "n_inputs": 492
+        },
+        {
+          "best_epoch": 13,
+          "epochs_run": 100,
+          "val_loss_best": 0.15370117172952336,
+          "n_inputs": 492
+        },
+        {
+          "best_epoch": 4,
+          "epochs_run": 100,
+          "val_loss_best": 0.15315156694914522,
+          "n_inputs": 492
+        },
+        {
+          "best_epoch": 8,
+          "epochs_run": 100,
+          "val_loss_best": 0.13346878942456147,
+          "n_inputs": 492
+        }
+      ]
+    },
+    "ensemble": {
+      "threshold_from_oof": 0.2539056157880046,
+      "oof": {
+        "cost": 42080,
+        "roc_auc": 0.9869728220338982,
+        "pr_auc": 0.8282587085023752
+      },
+      "test": {
+        "cost": 9150,
+        "cost_ci95": [
+          6620,
+          11850
+        ],
+        "false_alarms": 565,
+        "missed": 7,
+        "recall": 0.9813333333333333,
+        "roc_auc": 0.9951571626666667,
+        "pr_auc": 0.879382762772008
+      },
+      "not_valid_threshold_tuned_on_test": {
+        "cost": 9090
+      }
+    }
+  },
+  "selected_by_oof": "ensemble"
+}

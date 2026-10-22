@@ -1,0 +1,487 @@
+{
+  "data": {
+    "rows": 1516948,
+    "start": "2020-02-01 00:00:00",
+    "end": "2020-09-01 03:59:50",
+    "median_sampling_seconds": 10.0,
+    "gaps_over_10min": 230,
+    "hours_in_gaps": 901.3,
+    "windows": 25256,
+    "features": 21
+  },
+  "protocol": {
+    "window": "10m",
+    "min_samples": 30,
+    "smoothing_windows": 3,
+    "threshold_quantile": 0.995,
+    "fit_period": [
+      "2020-02-01",
+      "2020-03-16"
+    ],
+    "calibration_period": [
+      "2020-03-16",
+      "2020-04-01"
+    ],
+    "evaluation_period": [
+      "2020-04-01",
+      "2020-09-01"
+    ],
+    "detection_horizons_hours": [
+      2,
+      24
+    ],
+    "failure_zone_hours": [
+      24,
+      12
+    ]
+  },
+  "failures": [
+    {
+      "id": "1",
+      "start": "2020-04-18 00:00",
+      "end": "2020-04-18 23:59",
+      "maintenance": null
+    },
+    {
+      "id": "2",
+      "start": "2020-05-29 23:30",
+      "end": "2020-05-30 06:00",
+      "maintenance": "2020-05-30 12:00"
+    },
+    {
+      "id": "3",
+      "start": "2020-06-05 10:00",
+      "end": "2020-06-07 14:30",
+      "maintenance": "2020-06-08 16:00"
+    },
+    {
+      "id": "4",
+      "start": "2020-07-15 14:30",
+      "end": "2020-07-15 19:00",
+      "maintenance": "2020-07-16 00:00"
+    }
+  ],
+  "detectors": {
+    "lps_rule": {
+      "detector": "lps_rule",
+      "view": "absolute",
+      "threshold": 0.0,
+      "calibration_alarm_share": 0.0029,
+      "threshold_rule": "LPS active in the window",
+      "per_failure": [
+        {
+          "id": 1,
+          "detected_2h": false,
+          "lead_hours_2h": null,
+          "detected_24h": false,
+          "lead_hours_24h": null
+        },
+        {
+          "id": 2,
+          "detected_2h": false,
+          "lead_hours_2h": null,
+          "detected_24h": false,
+          "lead_hours_24h": null
+        },
+        {
+          "id": 3,
+          "detected_2h": true,
+          "lead_hours_2h": -33.83,
+          "detected_24h": true,
+          "lead_hours_24h": -33.83
+        },
+        {
+          "id": 4,
+          "detected_2h": true,
+          "lead_hours_2h": -3.0,
+          "detected_24h": true,
+          "lead_hours_24h": -3.0
+        }
+      ],
+      "detected_2h": 2,
+      "median_lead_hours_2h": -18.415,
+      "chance_detected_2h": 0.51,
+      "detected_24h": 2,
+      "median_lead_hours_24h": -18.415,
+      "chance_detected_24h": 0.83,
+      "false_alarm_episodes": 27,
+      "false_alarms_per_week": 1.63,
+      "share_of_normal_time_in_alarm": 0.0037,
+      "normal_weeks_observed": 16.5
+    },
+    "duty_zscore__absolute": {
+      "detector": "duty_zscore",
+      "view": "absolute",
+      "threshold": 5.640194205774477,
+      "calibration_alarm_share": 0.0,
+      "per_failure": [
+        {
+          "id": 1,
+          "detected_2h": false,
+          "lead_hours_2h": null,
+          "detected_24h": false,
+          "lead_hours_24h": null
+        },
+        {
+          "id": 2,
+          "detected_2h": false,
+          "lead_hours_2h": null,
+          "detected_24h": false,
+          "lead_hours_24h": null
+        },
+        {
+          "id": 3,
+          "detected_2h": false,
+          "lead_hours_2h": null,
+          "detected_24h": false,
+          "lead_hours_24h": null
+        },
+        {
+          "id": 4,
+          "detected_2h": false,
+          "lead_hours_2h": null,
+          "detected_24h": false,
+          "lead_hours_24h": null
+        }
+      ],
+      "detected_2h": 0,
+      "median_lead_hours_2h": null,
+      "chance_detected_2h": 0.0,
+      "detected_24h": 0,
+      "median_lead_hours_24h": null,
+      "chance_detected_24h": 0.0,
+      "false_alarm_episodes": 0,
+      "false_alarms_per_week": 0.0,
+      "share_of_normal_time_in_alarm": 0.0,
+      "normal_weeks_observed": 16.5
+    },
+    "pca__absolute": {
+      "detector": "pca",
+      "view": "absolute",
+      "threshold": 0.206935057150058,
+      "calibration_alarm_share": 0.0049,
+      "components": 9,
+      "per_failure": [
+        {
+          "id": 1,
+          "detected_2h": true,
+          "lead_hours_2h": 2.0,
+          "detected_24h": true,
+          "lead_hours_24h": 14.5
+        },
+        {
+          "id": 2,
+          "detected_2h": true,
+          "lead_hours_2h": 0.17,
+          "detected_24h": true,
+          "lead_hours_24h": 0.17
+        },
+        {
+          "id": 3,
+          "detected_2h": true,
+          "lead_hours_2h": 0.0,
+          "detected_24h": true,
+          "lead_hours_24h": 0.0
+        },
+        {
+          "id": 4,
+          "detected_2h": true,
+          "lead_hours_2h": 2.0,
+          "detected_24h": true,
+          "lead_hours_24h": 4.0
+        }
+      ],
+      "detected_2h": 4,
+      "median_lead_hours_2h": 1.085,
+      "chance_detected_2h": 2.08,
+      "detected_24h": 4,
+      "median_lead_hours_24h": 2.085,
+      "chance_detected_24h": 2.68,
+      "false_alarm_episodes": 115,
+      "false_alarms_per_week": 6.96,
+      "share_of_normal_time_in_alarm": 0.1974,
+      "normal_weeks_observed": 16.5
+    },
+    "isolation_forest__absolute": {
+      "detector": "isolation_forest",
+      "view": "absolute",
+      "threshold": 0.7242034931532725,
+      "calibration_alarm_share": 0.0054,
+      "per_failure": [
+        {
+          "id": 1,
+          "detected_2h": false,
+          "lead_hours_2h": null,
+          "detected_24h": false,
+          "lead_hours_24h": null
+        },
+        {
+          "id": 2,
+          "detected_2h": false,
+          "lead_hours_2h": null,
+          "detected_24h": false,
+          "lead_hours_24h": null
+        },
+        {
+          "id": 3,
+          "detected_2h": true,
+          "lead_hours_2h": -1.0,
+          "detected_24h": true,
+          "lead_hours_24h": -1.0
+        },
+        {
+          "id": 4,
+          "detected_2h": true,
+          "lead_hours_2h": -3.0,
+          "detected_24h": true,
+          "lead_hours_24h": -3.0
+        }
+      ],
+      "detected_2h": 2,
+      "median_lead_hours_2h": -2.0,
+      "chance_detected_2h": 0.36,
+      "detected_24h": 2,
+      "median_lead_hours_24h": -2.0,
+      "chance_detected_24h": 0.53,
+      "false_alarm_episodes": 13,
+      "false_alarms_per_week": 0.79,
+      "share_of_normal_time_in_alarm": 0.0073,
+      "normal_weeks_observed": 16.5
+    },
+    "autoencoder__absolute": {
+      "detector": "autoencoder",
+      "view": "absolute",
+      "threshold": 0.28180059790611267,
+      "calibration_alarm_share": 0.0049,
+      "best_epoch": 271,
+      "epochs_run": 291,
+      "per_failure": [
+        {
+          "id": 1,
+          "detected_2h": true,
+          "lead_hours_2h": 2.0,
+          "detected_24h": true,
+          "lead_hours_24h": 14.5
+        },
+        {
+          "id": 2,
+          "detected_2h": true,
+          "lead_hours_2h": 0.17,
+          "detected_24h": true,
+          "lead_hours_24h": 0.17
+        },
+        {
+          "id": 3,
+          "detected_2h": true,
+          "lead_hours_2h": 0.0,
+          "detected_24h": true,
+          "lead_hours_24h": 0.0
+        },
+        {
+          "id": 4,
+          "detected_2h": true,
+          "lead_hours_2h": 0.67,
+          "detected_24h": true,
+          "lead_hours_24h": 0.67
+        }
+      ],
+      "detected_2h": 4,
+      "median_lead_hours_2h": 0.42000000000000004,
+      "chance_detected_2h": 1.4,
+      "detected_24h": 4,
+      "median_lead_hours_24h": 0.42000000000000004,
+      "chance_detected_24h": 1.99,
+      "false_alarm_episodes": 62,
+      "false_alarms_per_week": 3.75,
+      "share_of_normal_time_in_alarm": 0.0793,
+      "normal_weeks_observed": 16.5
+    },
+    "duty_zscore__drift_adjusted": {
+      "detector": "duty_zscore",
+      "view": "drift_adjusted",
+      "threshold": 6.249833035700554,
+      "calibration_alarm_share": 0.0,
+      "per_failure": [
+        {
+          "id": 1,
+          "detected_2h": false,
+          "lead_hours_2h": null,
+          "detected_24h": false,
+          "lead_hours_24h": null
+        },
+        {
+          "id": 2,
+          "detected_2h": false,
+          "lead_hours_2h": null,
+          "detected_24h": false,
+          "lead_hours_24h": null
+        },
+        {
+          "id": 3,
+          "detected_2h": false,
+          "lead_hours_2h": null,
+          "detected_24h": false,
+          "lead_hours_24h": null
+        },
+        {
+          "id": 4,
+          "detected_2h": false,
+          "lead_hours_2h": null,
+          "detected_24h": false,
+          "lead_hours_24h": null
+        }
+      ],
+      "detected_2h": 0,
+      "median_lead_hours_2h": null,
+      "chance_detected_2h": 0.0,
+      "detected_24h": 0,
+      "median_lead_hours_24h": null,
+      "chance_detected_24h": 0.0,
+      "false_alarm_episodes": 0,
+      "false_alarms_per_week": 0.0,
+      "share_of_normal_time_in_alarm": 0.0,
+      "normal_weeks_observed": 16.5
+    },
+    "pca__drift_adjusted": {
+      "detector": "pca",
+      "view": "drift_adjusted",
+      "threshold": 0.13896486227105523,
+      "calibration_alarm_share": 0.0054,
+      "components": 9,
+      "per_failure": [
+        {
+          "id": 1,
+          "detected_2h": true,
+          "lead_hours_2h": 2.0,
+          "detected_24h": true,
+          "lead_hours_24h": 14.5
+        },
+        {
+          "id": 2,
+          "detected_2h": true,
+          "lead_hours_2h": 2.0,
+          "detected_24h": true,
+          "lead_hours_24h": 23.5
+        },
+        {
+          "id": 3,
+          "detected_2h": true,
+          "lead_hours_2h": 0.0,
+          "detected_24h": true,
+          "lead_hours_24h": 0.0
+        },
+        {
+          "id": 4,
+          "detected_2h": true,
+          "lead_hours_2h": 1.67,
+          "detected_24h": true,
+          "lead_hours_24h": 1.67
+        }
+      ],
+      "detected_2h": 4,
+      "median_lead_hours_2h": 1.835,
+      "chance_detected_2h": 2.66,
+      "detected_24h": 4,
+      "median_lead_hours_24h": 8.085,
+      "chance_detected_24h": 3.29,
+      "false_alarm_episodes": 198,
+      "false_alarms_per_week": 11.98,
+      "share_of_normal_time_in_alarm": 0.2766,
+      "normal_weeks_observed": 16.5
+    },
+    "isolation_forest__drift_adjusted": {
+      "detector": "isolation_forest",
+      "view": "drift_adjusted",
+      "threshold": 0.7110252757579301,
+      "calibration_alarm_share": 0.0049,
+      "per_failure": [
+        {
+          "id": 1,
+          "detected_2h": false,
+          "lead_hours_2h": null,
+          "detected_24h": false,
+          "lead_hours_24h": null
+        },
+        {
+          "id": 2,
+          "detected_2h": false,
+          "lead_hours_2h": null,
+          "detected_24h": false,
+          "lead_hours_24h": null
+        },
+        {
+          "id": 3,
+          "detected_2h": true,
+          "lead_hours_2h": -0.33,
+          "detected_24h": true,
+          "lead_hours_24h": -0.33
+        },
+        {
+          "id": 4,
+          "detected_2h": true,
+          "lead_hours_2h": -3.0,
+          "detected_24h": true,
+          "lead_hours_24h": -3.0
+        }
+      ],
+      "detected_2h": 2,
+      "median_lead_hours_2h": -1.665,
+      "chance_detected_2h": 0.46,
+      "detected_24h": 2,
+      "median_lead_hours_24h": -1.665,
+      "chance_detected_24h": 0.7,
+      "false_alarm_episodes": 18,
+      "false_alarms_per_week": 1.09,
+      "share_of_normal_time_in_alarm": 0.0065,
+      "normal_weeks_observed": 16.5
+    },
+    "autoencoder__drift_adjusted": {
+      "detector": "autoencoder",
+      "view": "drift_adjusted",
+      "threshold": 0.22280500650405835,
+      "calibration_alarm_share": 0.0054,
+      "best_epoch": 298,
+      "epochs_run": 300,
+      "per_failure": [
+        {
+          "id": 1,
+          "detected_2h": true,
+          "lead_hours_2h": 2.0,
+          "detected_24h": true,
+          "lead_hours_24h": 14.5
+        },
+        {
+          "id": 2,
+          "detected_2h": true,
+          "lead_hours_2h": 2.0,
+          "detected_24h": true,
+          "lead_hours_24h": 2.33
+        },
+        {
+          "id": 3,
+          "detected_2h": true,
+          "lead_hours_2h": 0.0,
+          "detected_24h": true,
+          "lead_hours_24h": 0.0
+        },
+        {
+          "id": 4,
+          "detected_2h": true,
+          "lead_hours_2h": 0.83,
+          "detected_24h": true,
+          "lead_hours_24h": 0.83
+        }
+      ],
+      "detected_2h": 4,
+      "median_lead_hours_2h": 1.415,
+      "chance_detected_2h": 2.27,
+      "detected_24h": 4,
+      "median_lead_hours_24h": 1.58,
+      "chance_detected_24h": 2.87,
+      "false_alarm_episodes": 126,
+      "false_alarms_per_week": 7.62,
+      "share_of_normal_time_in_alarm": 0.2076,
+      "normal_weeks_observed": 16.5
+    }
+  }
+}

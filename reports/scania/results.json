@@ -1,0 +1,1863 @@
+{
+  "datos": {
+    "vehiculos_train": 23550,
+    "reparaciones_train": 2272,
+    "lecturas_train": 1122452,
+    "features_todas": 520,
+    "features_invariantes": 310
+  },
+  "escala": {
+    "factor_por_variable": [
+      {
+        "variable": "171",
+        "bins": 1,
+        "validation": 1.007,
+        "test": 1.011
+      },
+      {
+        "variable": "666",
+        "bins": 1,
+        "validation": 1.753,
+        "test": 1.902
+      },
+      {
+        "variable": "427",
+        "bins": 1,
+        "validation": 1.189,
+        "test": 0.919
+      },
+      {
+        "variable": "837",
+        "bins": 1,
+        "validation": 1.309,
+        "test": 1.991
+      },
+      {
+        "variable": "167",
+        "bins": 10,
+        "validation": 0.939,
+        "test": 0.543
+      },
+      {
+        "variable": "309",
+        "bins": 1,
+        "validation": 0.653,
+        "test": 0.469
+      },
+      {
+        "variable": "272",
+        "bins": 10,
+        "validation": 0.156,
+        "test": 0.869
+      },
+      {
+        "variable": "835",
+        "bins": 1,
+        "validation": 1.104,
+        "test": 1.207
+      },
+      {
+        "variable": "370",
+        "bins": 1,
+        "validation": null,
+        "test": null
+      },
+      {
+        "variable": "291",
+        "bins": 11,
+        "validation": 2.692,
+        "test": 0.674
+      },
+      {
+        "variable": "158",
+        "bins": 10,
+        "validation": 0.758,
+        "test": 1.19
+      },
+      {
+        "variable": "100",
+        "bins": 1,
+        "validation": 0.81,
+        "test": 0.611
+      },
+      {
+        "variable": "459",
+        "bins": 20,
+        "validation": 2.53,
+        "test": 2.037
+      },
+      {
+        "variable": "397",
+        "bins": 36,
+        "validation": 3.889,
+        "test": 1.82
+      }
+    ],
+    "validacion_adversarial": {
+      "todas": {
+        "train_vs_validation": {
+          "auc": 1.0,
+          "top_features": {
+            "life_rate_272_1": 0.197,
+            "life_rate_272_0": 0.155,
+            "win_rate_272_0": 0.151,
+            "life_rate_397_1": 0.132,
+            "life_rate_272_2": 0.07
+          }
+        },
+        "train_vs_test": {
+          "auc": 1.0,
+          "top_features": {
+            "life_rate_167_5": 0.137,
+            "life_rate_397_1": 0.075,
+            "win_rate_167_5": 0.065,
+            "life_rate_459_1": 0.062,
+            "life_rate_459_2": 0.06
+          }
+        },
+        "validation_vs_test": {
+          "auc": 1.0,
+          "top_features": {
+            "life_rate_272_1": 0.207,
+            "life_rate_272_0": 0.166,
+            "win_rate_272_0": 0.142,
+            "life_rate_272_4": 0.089,
+            "life_rate_272_2": 0.081
+          }
+        }
+      },
+      "invariantes": {
+        "train_vs_validation": {
+          "auc": 0.82,
+          "top_features": {
+            "time_step": 0.142,
+            "n_readouts": 0.074,
+            "recent_frac_272_6": 0.055,
+            "rel_rate_272_5": 0.018,
+            "recent_frac_397_35": 0.017
+          }
+        },
+        "train_vs_test": {
+          "auc": 0.81,
+          "top_features": {
+            "time_step": 0.146,
+            "n_readouts": 0.082,
+            "recent_frac_167_0": 0.044,
+            "rel_rate_167_0": 0.026,
+            "recent_frac_167_8": 0.021
+          }
+        },
+        "validation_vs_test": {
+          "auc": 0.67,
+          "top_features": {
+            "recent_frac_272_6": 0.07,
+            "recent_frac_167_0": 0.034,
+            "rel_rate_272_6": 0.023,
+            "recent_frac_272_5": 0.021,
+            "recent_frac_167_8": 0.02
+          }
+        }
+      }
+    }
+  },
+  "modelos": {
+    "logistic": {
+      "familia": "logistic",
+      "features": "invariantes",
+      "info": {
+        "iterations": 120
+      },
+      "segundos": 16.7,
+      "seleccion": {
+        "costo_por_1000_camiones": 5254.15,
+        "costo_por_1000_no_hacer_nada": 7868.28,
+        "riesgo_medio_predicho": 0.0213,
+        "tasa_observada": 0.0268
+      },
+      "validation": {
+        "costo": 39135,
+        "costo_no_hacer_nada": 57400,
+        "costo_argmax": 57051,
+        "ahorro_pct": 31.82,
+        "ahorro_ic95": [
+          22.18,
+          40.84
+        ],
+        "recall_alarma": 0.5956,
+        "tasa_falsa_alarma": 0.3081,
+        "auc_algun_riesgo": 0.7004,
+        "riesgo_medio_predicho": 0.0349,
+        "tasa_observada": 0.027,
+        "costo_visita_equilibrio": 4.135185542000136,
+        "sensibilidad": [
+          {
+            "k": 0.5,
+            "ahorro_pct": 54.53
+          },
+          {
+            "k": 1.0,
+            "ahorro_pct": 31.82
+          },
+          {
+            "k": 1.5,
+            "ahorro_pct": 16.92
+          },
+          {
+            "k": 2.0,
+            "ahorro_pct": 10.38
+          },
+          {
+            "k": 3.0,
+            "ahorro_pct": 4.12
+          },
+          {
+            "k": 5.0,
+            "ahorro_pct": -1.59
+          },
+          {
+            "k": 10.0,
+            "ahorro_pct": -6.28
+          }
+        ]
+      },
+      "test": {
+        "costo": 43954,
+        "costo_no_hacer_nada": 56100,
+        "costo_argmax": 56110,
+        "ahorro_pct": 21.65,
+        "ahorro_ic95": [
+          11.35,
+          30.54
+        ],
+        "recall_alarma": 0.4859,
+        "tasa_falsa_alarma": 0.2998,
+        "auc_algun_riesgo": 0.6568,
+        "riesgo_medio_predicho": 0.0341,
+        "tasa_observada": 0.0281,
+        "costo_visita_equilibrio": 2.3499130938635515,
+        "sensibilidad": [
+          {
+            "k": 0.5,
+            "ahorro_pct": 44.59
+          },
+          {
+            "k": 1.0,
+            "ahorro_pct": 21.65
+          },
+          {
+            "k": 1.5,
+            "ahorro_pct": 12.16
+          },
+          {
+            "k": 2.0,
+            "ahorro_pct": 4.9
+          },
+          {
+            "k": 3.0,
+            "ahorro_pct": -3.58
+          },
+          {
+            "k": 5.0,
+            "ahorro_pct": -8.25
+          },
+          {
+            "k": 10.0,
+            "ahorro_pct": -6.67
+          }
+        ]
+      }
+    },
+    "random_forest": {
+      "familia": "random_forest",
+      "features": "invariantes",
+      "info": {
+        "trees": 400
+      },
+      "segundos": 71.7,
+      "seleccion": {
+        "costo_por_1000_camiones": 7755.98,
+        "costo_por_1000_no_hacer_nada": 7868.28,
+        "riesgo_medio_predicho": 0.1233,
+        "tasa_observada": 0.0268
+      },
+      "validation": {
+        "costo": 45329,
+        "costo_no_hacer_nada": 57400,
+        "costo_argmax": 56735,
+        "ahorro_pct": 21.03,
+        "ahorro_ic95": [
+          5.76,
+          32.43
+        ],
+        "recall_alarma": 0.9853,
+        "tasa_falsa_alarma": 0.9024,
+        "auc_algun_riesgo": 0.7248,
+        "riesgo_medio_predicho": 0.1732,
+        "tasa_observada": 0.027,
+        "costo_visita_equilibrio": 1.289045958788893,
+        "sensibilidad": [
+          {
+            "k": 0.5,
+            "ahorro_pct": 58.17
+          },
+          {
+            "k": 1.0,
+            "ahorro_pct": 21.03
+          },
+          {
+            "k": 1.5,
+            "ahorro_pct": -10.72
+          },
+          {
+            "k": 2.0,
+            "ahorro_pct": -36.06
+          },
+          {
+            "k": 3.0,
+            "ahorro_pct": -77.55
+          },
+          {
+            "k": 5.0,
+            "ahorro_pct": -117.34
+          },
+          {
+            "k": 10.0,
+            "ahorro_pct": -141.44
+          }
+        ]
+      },
+      "test": {
+        "costo": 45914,
+        "costo_no_hacer_nada": 56100,
+        "costo_argmax": 56042,
+        "ahorro_pct": 18.16,
+        "ahorro_ic95": [
+          3.66,
+          30.14
+        ],
+        "recall_alarma": 0.9718,
+        "tasa_falsa_alarma": 0.8978,
+        "auc_algun_riesgo": 0.6422,
+        "riesgo_medio_predicho": 0.1705,
+        "tasa_observada": 0.0281,
+        "costo_visita_equilibrio": 1.2443088835278644,
+        "sensibilidad": [
+          {
+            "k": 0.5,
+            "ahorro_pct": 56.99
+          },
+          {
+            "k": 1.0,
+            "ahorro_pct": 18.16
+          },
+          {
+            "k": 1.5,
+            "ahorro_pct": -13.94
+          },
+          {
+            "k": 2.0,
+            "ahorro_pct": -43.53
+          },
+          {
+            "k": 3.0,
+            "ahorro_pct": -87.39
+          },
+          {
+            "k": 5.0,
+            "ahorro_pct": -132.83
+          },
+          {
+            "k": 10.0,
+            "ahorro_pct": -149.65
+          }
+        ]
+      }
+    },
+    "lightgbm": {
+      "familia": "lightgbm",
+      "features": "invariantes",
+      "info": {
+        "best_iteration": 284
+      },
+      "segundos": 18.9,
+      "seleccion": {
+        "costo_por_1000_camiones": 5385.2,
+        "costo_por_1000_no_hacer_nada": 7868.28,
+        "riesgo_medio_predicho": 0.0237,
+        "tasa_observada": 0.0268
+      },
+      "validation": {
+        "costo": 39350,
+        "costo_no_hacer_nada": 57400,
+        "costo_argmax": 56598,
+        "ahorro_pct": 31.45,
+        "ahorro_ic95": [
+          22.58,
+          40.45
+        ],
+        "recall_alarma": 0.5588,
+        "tasa_falsa_alarma": 0.2607,
+        "auc_algun_riesgo": 0.7271,
+        "riesgo_medio_predicho": 0.0417,
+        "tasa_observada": 0.027,
+        "costo_visita_equilibrio": 4.135185542000136,
+        "sensibilidad": [
+          {
+            "k": 0.5,
+            "ahorro_pct": 56.19
+          },
+          {
+            "k": 1.0,
+            "ahorro_pct": 31.45
+          },
+          {
+            "k": 1.5,
+            "ahorro_pct": 20.55
+          },
+          {
+            "k": 2.0,
+            "ahorro_pct": 13.64
+          },
+          {
+            "k": 3.0,
+            "ahorro_pct": 5.73
+          },
+          {
+            "k": 5.0,
+            "ahorro_pct": -0.39
+          },
+          {
+            "k": 10.0,
+            "ahorro_pct": -12.21
+          }
+        ]
+      },
+      "test": {
+        "costo": 41418,
+        "costo_no_hacer_nada": 56100,
+        "costo_argmax": 55230,
+        "ahorro_pct": 26.17,
+        "ahorro_ic95": [
+          16.56,
+          34.67
+        ],
+        "recall_alarma": 0.5282,
+        "tasa_falsa_alarma": 0.2625,
+        "auc_algun_riesgo": 0.701,
+        "riesgo_medio_predicho": 0.0412,
+        "tasa_observada": 0.0281,
+        "costo_visita_equilibrio": 2.904644596431972,
+        "sensibilidad": [
+          {
+            "k": 0.5,
+            "ahorro_pct": 46.48
+          },
+          {
+            "k": 1.0,
+            "ahorro_pct": 26.17
+          },
+          {
+            "k": 1.5,
+            "ahorro_pct": 13.49
+          },
+          {
+            "k": 2.0,
+            "ahorro_pct": 7.64
+          },
+          {
+            "k": 3.0,
+            "ahorro_pct": 0.88
+          },
+          {
+            "k": 5.0,
+            "ahorro_pct": -6.95
+          },
+          {
+            "k": 10.0,
+            "ahorro_pct": -12.38
+          }
+        ]
+      }
+    },
+    "xgboost": {
+      "familia": "xgboost",
+      "features": "invariantes",
+      "info": {
+        "best_iteration": 256
+      },
+      "segundos": 72.3,
+      "seleccion": {
+        "costo_por_1000_camiones": 5130.64,
+        "costo_por_1000_no_hacer_nada": 7868.28,
+        "riesgo_medio_predicho": 0.0221,
+        "tasa_observada": 0.0268
+      },
+      "validation": {
+        "costo": 33566,
+        "costo_no_hacer_nada": 57400,
+        "costo_argmax": 56915,
+        "ahorro_pct": 41.52,
+        "ahorro_ic95": [
+          32.49,
+          50.5
+        ],
+        "recall_alarma": 0.6838,
+        "tasa_falsa_alarma": 0.3012,
+        "auc_algun_riesgo": 0.7438,
+        "riesgo_medio_predicho": 0.0364,
+        "tasa_observada": 0.027,
+        "costo_visita_equilibrio": 6.780438798814147,
+        "sensibilidad": [
+          {
+            "k": 0.5,
+            "ahorro_pct": 59.41
+          },
+          {
+            "k": 1.0,
+            "ahorro_pct": 41.52
+          },
+          {
+            "k": 1.5,
+            "ahorro_pct": 23.74
+          },
+          {
+            "k": 2.0,
+            "ahorro_pct": 16.77
+          },
+          {
+            "k": 3.0,
+            "ahorro_pct": 9.9
+          },
+          {
+            "k": 5.0,
+            "ahorro_pct": 2.22
+          },
+          {
+            "k": 10.0,
+            "ahorro_pct": 0.53
+          }
+        ]
+      },
+      "test": {
+        "costo": 38955,
+        "costo_no_hacer_nada": 56100,
+        "costo_argmax": 55956,
+        "ahorro_pct": 30.56,
+        "ahorro_ic95": [
+          19.67,
+          39.53
+        ],
+        "recall_alarma": 0.5704,
+        "tasa_falsa_alarma": 0.2978,
+        "auc_algun_riesgo": 0.7062,
+        "riesgo_medio_predicho": 0.0359,
+        "tasa_observada": 0.0281,
+        "costo_visita_equilibrio": 4.5974350304464275,
+        "sensibilidad": [
+          {
+            "k": 0.5,
+            "ahorro_pct": 54.31
+          },
+          {
+            "k": 1.0,
+            "ahorro_pct": 30.56
+          },
+          {
+            "k": 1.5,
+            "ahorro_pct": 17.22
+          },
+          {
+            "k": 2.0,
+            "ahorro_pct": 13.37
+          },
+          {
+            "k": 3.0,
+            "ahorro_pct": 5.58
+          },
+          {
+            "k": 5.0,
+            "ahorro_pct": -1.77
+          },
+          {
+            "k": 10.0,
+            "ahorro_pct": -6.75
+          }
+        ]
+      }
+    },
+    "catboost": {
+      "familia": "catboost",
+      "features": "invariantes",
+      "info": {
+        "best_iteration": 1528
+      },
+      "segundos": 600.2,
+      "seleccion": {
+        "costo_por_1000_camiones": 5296.45,
+        "costo_por_1000_no_hacer_nada": 7868.28,
+        "riesgo_medio_predicho": 0.0202,
+        "tasa_observada": 0.0268
+      },
+      "validation": {
+        "costo": 35799,
+        "costo_no_hacer_nada": 57400,
+        "costo_argmax": 57407,
+        "ahorro_pct": 37.63,
+        "ahorro_ic95": [
+          27.79,
+          46.13
+        ],
+        "recall_alarma": 0.625,
+        "tasa_falsa_alarma": 0.2845,
+        "auc_algun_riesgo": 0.727,
+        "riesgo_medio_predicho": 0.032,
+        "tasa_observada": 0.027,
+        "costo_visita_equilibrio": 7.809416760853467,
+        "sensibilidad": [
+          {
+            "k": 0.5,
+            "ahorro_pct": 60.44
+          },
+          {
+            "k": 1.0,
+            "ahorro_pct": 37.63
+          },
+          {
+            "k": 1.5,
+            "ahorro_pct": 18.43
+          },
+          {
+            "k": 2.0,
+            "ahorro_pct": 8.99
+          },
+          {
+            "k": 3.0,
+            "ahorro_pct": 4.79
+          },
+          {
+            "k": 5.0,
+            "ahorro_pct": 3.14
+          },
+          {
+            "k": 10.0,
+            "ahorro_pct": -1.04
+          }
+        ]
+      },
+      "test": {
+        "costo": 40365,
+        "costo_no_hacer_nada": 56100,
+        "costo_argmax": 56107,
+        "ahorro_pct": 28.05,
+        "ahorro_ic95": [
+          17.19,
+          36.69
+        ],
+        "recall_alarma": 0.5493,
+        "tasa_falsa_alarma": 0.2884,
+        "auc_algun_riesgo": 0.6879,
+        "riesgo_medio_predicho": 0.0321,
+        "tasa_observada": 0.0281,
+        "costo_visita_equilibrio": 3.1172626855466268,
+        "sensibilidad": [
+          {
+            "k": 0.5,
+            "ahorro_pct": 49.56
+          },
+          {
+            "k": 1.0,
+            "ahorro_pct": 28.05
+          },
+          {
+            "k": 1.5,
+            "ahorro_pct": 15.97
+          },
+          {
+            "k": 2.0,
+            "ahorro_pct": 6.06
+          },
+          {
+            "k": 3.0,
+            "ahorro_pct": 2.53
+          },
+          {
+            "k": 5.0,
+            "ahorro_pct": -1.32
+          },
+          {
+            "k": 10.0,
+            "ahorro_pct": -4.22
+          }
+        ]
+      }
+    },
+    "mlp": {
+      "familia": "mlp",
+      "features": "invariantes",
+      "info": {
+        "best_epoch": 3,
+        "epochs_run": 100,
+        "val_loss_best": 0.12361373165184268,
+        "n_inputs": 663
+      },
+      "segundos": 47.2,
+      "seleccion": {
+        "costo_por_1000_camiones": 5115.75,
+        "costo_por_1000_no_hacer_nada": 7868.28,
+        "riesgo_medio_predicho": 0.0229,
+        "tasa_observada": 0.0268
+      },
+      "validation": {
+        "costo": 36170,
+        "costo_no_hacer_nada": 57400,
+        "costo_argmax": 57400,
+        "ahorro_pct": 36.99,
+        "ahorro_ic95": [
+          26.93,
+          46.05
+        ],
+        "recall_alarma": 0.625,
+        "tasa_falsa_alarma": 0.3141,
+        "auc_algun_riesgo": 0.7216,
+        "riesgo_medio_predicho": 0.035,
+        "tasa_observada": 0.027,
+        "costo_visita_equilibrio": 5.6827270989318865,
+        "sensibilidad": [
+          {
+            "k": 0.5,
+            "ahorro_pct": 60.01
+          },
+          {
+            "k": 1.0,
+            "ahorro_pct": 36.99
+          },
+          {
+            "k": 1.5,
+            "ahorro_pct": 25.01
+          },
+          {
+            "k": 2.0,
+            "ahorro_pct": 16.57
+          },
+          {
+            "k": 3.0,
+            "ahorro_pct": 4.98
+          },
+          {
+            "k": 5.0,
+            "ahorro_pct": 0.18
+          },
+          {
+            "k": 10.0,
+            "ahorro_pct": -0.88
+          }
+        ]
+      },
+      "test": {
+        "costo": 42543,
+        "costo_no_hacer_nada": 56100,
+        "costo_argmax": 56100,
+        "ahorro_pct": 24.17,
+        "ahorro_ic95": [
+          13.83,
+          33.81
+        ],
+        "recall_alarma": 0.5211,
+        "tasa_falsa_alarma": 0.3043,
+        "auc_algun_riesgo": 0.6544,
+        "riesgo_medio_predicho": 0.0343,
+        "tasa_observada": 0.0281,
+        "costo_visita_equilibrio": 2.0402857733683692,
+        "sensibilidad": [
+          {
+            "k": 0.5,
+            "ahorro_pct": 47.36
+          },
+          {
+            "k": 1.0,
+            "ahorro_pct": 24.17
+          },
+          {
+            "k": 1.5,
+            "ahorro_pct": 9.17
+          },
+          {
+            "k": 2.0,
+            "ahorro_pct": 2.34
+          },
+          {
+            "k": 3.0,
+            "ahorro_pct": -4.1
+          },
+          {
+            "k": 5.0,
+            "ahorro_pct": -4.83
+          },
+          {
+            "k": 10.0,
+            "ahorro_pct": -4.68
+          }
+        ]
+      }
+    },
+    "lightgbm_escala_cruda": {
+      "familia": "lightgbm",
+      "features": "todas",
+      "info": {
+        "best_iteration": 280
+      },
+      "segundos": 26.6,
+      "seleccion": {
+        "costo_por_1000_camiones": 5105.28,
+        "costo_por_1000_no_hacer_nada": 7868.28,
+        "riesgo_medio_predicho": 0.0243,
+        "tasa_observada": 0.0268
+      },
+      "validation": {
+        "costo": 40937,
+        "costo_no_hacer_nada": 57400,
+        "costo_argmax": 51152,
+        "ahorro_pct": 28.68,
+        "ahorro_ic95": [
+          16.65,
+          37.94
+        ],
+        "recall_alarma": 0.9412,
+        "tasa_falsa_alarma": 0.6664,
+        "auc_algun_riesgo": 0.7283,
+        "riesgo_medio_predicho": 0.1688,
+        "tasa_observada": 0.027,
+        "costo_visita_equilibrio": 1.6506302560910031,
+        "sensibilidad": [
+          {
+            "k": 0.5,
+            "ahorro_pct": 56.12
+          },
+          {
+            "k": 1.0,
+            "ahorro_pct": 28.68
+          },
+          {
+            "k": 1.5,
+            "ahorro_pct": 7.53
+          },
+          {
+            "k": 2.0,
+            "ahorro_pct": -12.08
+          },
+          {
+            "k": 3.0,
+            "ahorro_pct": -40.6
+          },
+          {
+            "k": 5.0,
+            "ahorro_pct": -78.92
+          },
+          {
+            "k": 10.0,
+            "ahorro_pct": -138.2
+          }
+        ]
+      },
+      "test": {
+        "costo": 40123,
+        "costo_no_hacer_nada": 56100,
+        "costo_argmax": 54441,
+        "ahorro_pct": 28.48,
+        "ahorro_ic95": [
+          18.02,
+          37.34
+        ],
+        "recall_alarma": 0.7535,
+        "tasa_falsa_alarma": 0.4514,
+        "auc_algun_riesgo": 0.7049,
+        "riesgo_medio_predicho": 0.0767,
+        "tasa_observada": 0.0281,
+        "costo_visita_equilibrio": 1.9011246868187024,
+        "sensibilidad": [
+          {
+            "k": 0.5,
+            "ahorro_pct": 53.63
+          },
+          {
+            "k": 1.0,
+            "ahorro_pct": 28.48
+          },
+          {
+            "k": 1.5,
+            "ahorro_pct": 10.03
+          },
+          {
+            "k": 2.0,
+            "ahorro_pct": 0.84
+          },
+          {
+            "k": 3.0,
+            "ahorro_pct": -16.59
+          },
+          {
+            "k": 5.0,
+            "ahorro_pct": -28.31
+          },
+          {
+            "k": 10.0,
+            "ahorro_pct": -45.48
+          }
+        ]
+      }
+    },
+    "ensemble": {
+      "familia": "ensemble",
+      "features": "invariantes",
+      "miembros": [
+        "lightgbm",
+        "xgboost",
+        "catboost"
+      ],
+      "seleccion": {
+        "costo_por_1000_camiones": 5131.69,
+        "costo_por_1000_no_hacer_nada": 7868.28,
+        "riesgo_medio_predicho": 0.022,
+        "tasa_observada": 0.0268
+      },
+      "validation": {
+        "costo": 35627,
+        "costo_no_hacer_nada": 57400,
+        "costo_argmax": 57427,
+        "ahorro_pct": 37.93,
+        "ahorro_ic95": [
+          28.76,
+          46.42
+        ],
+        "recall_alarma": 0.6397,
+        "tasa_falsa_alarma": 0.2959,
+        "auc_algun_riesgo": 0.7386,
+        "riesgo_medio_predicho": 0.0367,
+        "tasa_observada": 0.027,
+        "costo_visita_equilibrio": 6.098699014469905,
+        "sensibilidad": [
+          {
+            "k": 0.5,
+            "ahorro_pct": 59.85
+          },
+          {
+            "k": 1.0,
+            "ahorro_pct": 37.93
+          },
+          {
+            "k": 1.5,
+            "ahorro_pct": 25.36
+          },
+          {
+            "k": 2.0,
+            "ahorro_pct": 17.05
+          },
+          {
+            "k": 3.0,
+            "ahorro_pct": 8.75
+          },
+          {
+            "k": 5.0,
+            "ahorro_pct": 3.47
+          },
+          {
+            "k": 10.0,
+            "ahorro_pct": -4.38
+          }
+        ]
+      },
+      "test": {
+        "costo": 39906,
+        "costo_no_hacer_nada": 56100,
+        "costo_argmax": 56136,
+        "ahorro_pct": 28.87,
+        "ahorro_ic95": [
+          18.09,
+          38.03
+        ],
+        "recall_alarma": 0.5563,
+        "tasa_falsa_alarma": 0.29,
+        "auc_algun_riesgo": 0.7021,
+        "riesgo_medio_predicho": 0.0364,
+        "tasa_observada": 0.0281,
+        "costo_visita_equilibrio": 3.4657242157757318,
+        "sensibilidad": [
+          {
+            "k": 0.5,
+            "ahorro_pct": 52.32
+          },
+          {
+            "k": 1.0,
+            "ahorro_pct": 28.87
+          },
+          {
+            "k": 1.5,
+            "ahorro_pct": 16.93
+          },
+          {
+            "k": 2.0,
+            "ahorro_pct": 11.13
+          },
+          {
+            "k": 3.0,
+            "ahorro_pct": 5.08
+          },
+          {
+            "k": 5.0,
+            "ahorro_pct": -3.07
+          },
+          {
+            "k": 10.0,
+            "ahorro_pct": -6.58
+          }
+        ]
+      }
+    }
+  },
+  "seleccionado": "mlp",
+  "clasificador": {
+    "modelo": "mlp",
+    "validation": {
+      "siempre_sano": {
+        "costo_total": 57400,
+        "fallas_reales": 136,
+        "fallas_alarmadas": 0,
+        "recall_alarma": 0.0,
+        "falsas_alarmas": 0,
+        "camiones_sanos": 4910,
+        "tasa_falsa_alarma": 0.0,
+        "matriz_confusion": [
+          [
+            4910,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            16,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            14,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            30,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            76,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      },
+      "argmax": {
+        "costo_total": 57400,
+        "fallas_reales": 136,
+        "fallas_alarmadas": 0,
+        "recall_alarma": 0.0,
+        "falsas_alarmas": 0,
+        "camiones_sanos": 4910,
+        "tasa_falsa_alarma": 0.0,
+        "matriz_confusion": [
+          [
+            4910,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            16,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            14,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            30,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            76,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      },
+      "costo_esperado_minimo": {
+        "costo_total": 36170,
+        "fallas_reales": 136,
+        "fallas_alarmadas": 85,
+        "recall_alarma": 0.625,
+        "falsas_alarmas": 1542,
+        "camiones_sanos": 4910,
+        "tasa_falsa_alarma": 0.3140529531568228,
+        "matriz_confusion": [
+          [
+            3368,
+            0,
+            0,
+            9,
+            1533
+          ],
+          [
+            9,
+            0,
+            0,
+            0,
+            7
+          ],
+          [
+            6,
+            0,
+            0,
+            1,
+            7
+          ],
+          [
+            11,
+            0,
+            0,
+            0,
+            19
+          ],
+          [
+            25,
+            0,
+            0,
+            0,
+            51
+          ]
+        ]
+      },
+      "n_vehiculos": 5046,
+      "auc_algun_riesgo": 0.7216312747094765,
+      "sensibilidad_costo_visita": [
+        {
+          "k": 0.5,
+          "costo_politica": 22954.0,
+          "costo_nada": 57400.0,
+          "ahorro_pct": 60.01045296167247,
+          "alarmados_pct": 53.03210463733651
+        },
+        {
+          "k": 1.0,
+          "costo_politica": 36170.0,
+          "costo_nada": 57400.0,
+          "ahorro_pct": 36.98606271777003,
+          "alarmados_pct": 32.24336107808165
+        },
+        {
+          "k": 1.5,
+          "costo_politica": 43042.5,
+          "costo_nada": 57400.0,
+          "ahorro_pct": 25.013066202090595,
+          "alarmados_pct": 22.03725723345224
+        },
+        {
+          "k": 2.0,
+          "costo_politica": 47886.0,
+          "costo_nada": 57400.0,
+          "ahorro_pct": 16.57491289198606,
+          "alarmados_pct": 15.596512088783197
+        },
+        {
+          "k": 3.0,
+          "costo_politica": 54542.0,
+          "costo_nada": 57400.0,
+          "ahorro_pct": 4.9790940766550555,
+          "alarmados_pct": 8.561236623067776
+        },
+        {
+          "k": 5.0,
+          "costo_politica": 57294.0,
+          "costo_nada": 57400.0,
+          "ahorro_pct": 0.18466898954704325,
+          "alarmados_pct": 3.7653586999603648
+        },
+        {
+          "k": 10.0,
+          "costo_politica": 57907.0,
+          "costo_nada": 57400.0,
+          "ahorro_pct": -0.8832752613240347,
+          "alarmados_pct": 1.0305192231470472
+        }
+      ],
+      "costo_visita_equilibrio": 5.6827270989318865,
+      "calibracion_tabla": [
+        {
+          "desde": 0.0,
+          "hasta": 0.05,
+          "n": 3998,
+          "predicho": 0.01656162552535534,
+          "observado": 0.017508754377188594
+        },
+        {
+          "desde": 0.05,
+          "hasta": 0.1,
+          "n": 678,
+          "predicho": 0.06972146034240723,
+          "observado": 0.05309734513274336
+        },
+        {
+          "desde": 0.1,
+          "hasta": 0.2,
+          "n": 287,
+          "predicho": 0.13454623520374298,
+          "observado": 0.06968641114982578
+        },
+        {
+          "desde": 0.2,
+          "hasta": 0.3,
+          "n": 54,
+          "predicho": 0.23920892179012299,
+          "observado": 0.1111111111111111
+        },
+        {
+          "desde": 0.3,
+          "hasta": 0.5,
+          "n": 25,
+          "predicho": 0.3692787289619446,
+          "observado": 0.12
+        },
+        {
+          "desde": 0.5,
+          "hasta": 1.0,
+          "n": 4,
+          "predicho": 0.6135653853416443,
+          "observado": 0.25
+        }
+      ],
+      "calibracion_global": {
+        "riesgo_medio_predicho": 0.03501839563250542,
+        "tasa_observada": 0.026952041220768927
+      },
+      "recalibrado_con_el_otro_conjunto": {
+        "ajustado_en": "test",
+        "parametros": {
+          "a": 0.429422,
+          "b": -1.947938
+        },
+        "costo_esperado_minimo": {
+          "costo_total": 37957,
+          "fallas_reales": 136,
+          "fallas_alarmadas": 80,
+          "recall_alarma": 0.5882352941176471,
+          "falsas_alarmas": 1514,
+          "camiones_sanos": 4910,
+          "tasa_falsa_alarma": 0.3083503054989817,
+          "matriz_confusion": [
+            [
+              3396,
+              0,
+              0,
+              19,
+              1495
+            ],
+            [
+              10,
+              0,
+              0,
+              0,
+              6
+            ],
+            [
+              7,
+              0,
+              0,
+              0,
+              7
+            ],
+            [
+              12,
+              0,
+              0,
+              0,
+              18
+            ],
+            [
+              27,
+              0,
+              0,
+              1,
+              48
+            ]
+          ]
+        },
+        "sensibilidad_costo_visita": [
+          {
+            "k": 0.5,
+            "costo_politica": 20417.0,
+            "costo_nada": 57400.0,
+            "ahorro_pct": 64.43031358885017,
+            "alarmados_pct": 77.50693618707888
+          },
+          {
+            "k": 1.0,
+            "costo_politica": 37957.0,
+            "costo_nada": 57400.0,
+            "ahorro_pct": 33.872822299651574,
+            "alarmados_pct": 31.58937772493064
+          },
+          {
+            "k": 1.5,
+            "costo_politica": 46525.5,
+            "costo_nada": 57400.0,
+            "ahorro_pct": 18.945121951219512,
+            "alarmados_pct": 10.622275069361871
+          },
+          {
+            "k": 2.0,
+            "costo_politica": 51772.0,
+            "costo_nada": 57400.0,
+            "ahorro_pct": 9.804878048780486,
+            "alarmados_pct": 3.686087990487515
+          },
+          {
+            "k": 3.0,
+            "costo_politica": 55907.0,
+            "costo_nada": 57400.0,
+            "ahorro_pct": 2.601045296167248,
+            "alarmados_pct": 0.6936187078874356
+          },
+          {
+            "k": 5.0,
+            "costo_politica": 57000.0,
+            "costo_nada": 57400.0,
+            "ahorro_pct": 0.6968641114982632,
+            "alarmados_pct": 0.05945303210463733
+          },
+          {
+            "k": 10.0,
+            "costo_politica": 57400.0,
+            "costo_nada": 57400.0,
+            "ahorro_pct": 0.0,
+            "alarmados_pct": 0.0
+          }
+        ],
+        "costo_visita_equilibrio": 3.3454442800465203,
+        "calibracion_tabla": [
+          {
+            "desde": 0.0,
+            "hasta": 0.05,
+            "n": 4598,
+            "predicho": 0.025015858195941505,
+            "observado": 0.021966072205306657
+          },
+          {
+            "desde": 0.05,
+            "hasta": 0.1,
+            "n": 432,
+            "predicho": 0.061957381868665146,
+            "observado": 0.07407407407407407
+          },
+          {
+            "desde": 0.1,
+            "hasta": 0.2,
+            "n": 16,
+            "predicho": 0.1201013695199125,
+            "observado": 0.1875
+          }
+        ],
+        "calibracion_global": {
+          "riesgo_medio_predicho": 0.02848000928745957,
+          "tasa_observada": 0.026952041220768927
+        }
+      }
+    },
+    "test": {
+      "siempre_sano": {
+        "costo_total": 56100,
+        "fallas_reales": 142,
+        "fallas_alarmadas": 0,
+        "recall_alarma": 0.0,
+        "falsas_alarmas": 0,
+        "camiones_sanos": 4903,
+        "tasa_falsa_alarma": 0.0,
+        "matriz_confusion": [
+          [
+            4903,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            26,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            15,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            41,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            60,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      },
+      "argmax": {
+        "costo_total": 56100,
+        "fallas_reales": 142,
+        "fallas_alarmadas": 0,
+        "recall_alarma": 0.0,
+        "falsas_alarmas": 0,
+        "camiones_sanos": 4903,
+        "tasa_falsa_alarma": 0.0,
+        "matriz_confusion": [
+          [
+            4903,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            26,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            15,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            41,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            60,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      },
+      "costo_esperado_minimo": {
+        "costo_total": 42543,
+        "fallas_reales": 142,
+        "fallas_alarmadas": 74,
+        "recall_alarma": 0.5211267605633803,
+        "falsas_alarmas": 1492,
+        "camiones_sanos": 4903,
+        "tasa_falsa_alarma": 0.30430348766061593,
+        "matriz_confusion": [
+          [
+            3411,
+            0,
+            0,
+            9,
+            1483
+          ],
+          [
+            11,
+            0,
+            0,
+            0,
+            15
+          ],
+          [
+            7,
+            0,
+            0,
+            0,
+            8
+          ],
+          [
+            22,
+            0,
+            0,
+            0,
+            19
+          ],
+          [
+            28,
+            0,
+            0,
+            1,
+            31
+          ]
+        ]
+      },
+      "n_vehiculos": 5045,
+      "auc_algun_riesgo": 0.6543694145291901,
+      "sensibilidad_costo_visita": [
+        {
+          "k": 0.5,
+          "costo_politica": 29530.5,
+          "costo_nada": 56100.0,
+          "ahorro_pct": 47.36096256684492,
+          "alarmados_pct": 52.21010901883053
+        },
+        {
+          "k": 1.0,
+          "costo_politica": 42543.0,
+          "costo_nada": 56100.0,
+          "ahorro_pct": 24.165775401069524,
+          "alarmados_pct": 31.0406342913776
+        },
+        {
+          "k": 1.5,
+          "costo_politica": 50954.5,
+          "costo_nada": 56100.0,
+          "ahorro_pct": 9.17201426024955,
+          "alarmados_pct": 20.89197224975223
+        },
+        {
+          "k": 2.0,
+          "costo_politica": 54789.0,
+          "costo_nada": 56100.0,
+          "ahorro_pct": 2.3368983957219203,
+          "alarmados_pct": 14.66798810703667
+        },
+        {
+          "k": 3.0,
+          "costo_politica": 58402.0,
+          "costo_nada": 56100.0,
+          "ahorro_pct": -4.1033868092691606,
+          "alarmados_pct": 8.424182358771061
+        },
+        {
+          "k": 5.0,
+          "costo_politica": 58812.0,
+          "costo_nada": 56100.0,
+          "ahorro_pct": -4.834224598930481,
+          "alarmados_pct": 3.607532210109019
+        },
+        {
+          "k": 10.0,
+          "costo_politica": 58723.0,
+          "costo_nada": 56100.0,
+          "ahorro_pct": -4.675579322638157,
+          "alarmados_pct": 1.0109018830525274
+        }
+      ],
+      "costo_visita_equilibrio": 2.0402857733683692,
+      "calibracion_tabla": [
+        {
+          "desde": 0.0,
+          "hasta": 0.05,
+          "n": 4032,
+          "predicho": 0.01637250930070877,
+          "observado": 0.022569444444444444
+        },
+        {
+          "desde": 0.05,
+          "hasta": 0.1,
+          "n": 656,
+          "predicho": 0.06886465102434158,
+          "observado": 0.04420731707317073
+        },
+        {
+          "desde": 0.1,
+          "hasta": 0.2,
+          "n": 269,
+          "predicho": 0.13509303331375122,
+          "observado": 0.05204460966542751
+        },
+        {
+          "desde": 0.2,
+          "hasta": 0.3,
+          "n": 55,
+          "predicho": 0.23651883006095886,
+          "observado": 0.09090909090909091
+        },
+        {
+          "desde": 0.3,
+          "hasta": 0.5,
+          "n": 31,
+          "predicho": 0.36263155937194824,
+          "observado": 0.0967741935483871
+        },
+        {
+          "desde": 0.5,
+          "hasta": 1.0,
+          "n": 2,
+          "predicho": 0.6215609312057495,
+          "observado": 0.0
+        }
+      ],
+      "calibracion_global": {
+        "riesgo_medio_predicho": 0.03429582342505455,
+        "tasa_observada": 0.028146679881070367
+      },
+      "recalibrado_con_el_otro_conjunto": {
+        "ajustado_en": "validation",
+        "parametros": {
+          "a": 0.656226,
+          "b": -1.275901
+        },
+        "costo_esperado_minimo": {
+          "costo_total": 44683,
+          "fallas_reales": 142,
+          "fallas_alarmadas": 64,
+          "recall_alarma": 0.4507042253521127,
+          "falsas_alarmas": 1280,
+          "camiones_sanos": 4903,
+          "tasa_falsa_alarma": 0.26106465429328984,
+          "matriz_confusion": [
+            [
+              3623,
+              0,
+              0,
+              12,
+              1268
+            ],
+            [
+              11,
+              0,
+              0,
+              0,
+              15
+            ],
+            [
+              9,
+              0,
+              0,
+              0,
+              6
+            ],
+            [
+              25,
+              0,
+              0,
+              0,
+              16
+            ],
+            [
+              33,
+              0,
+              0,
+              1,
+              26
+            ]
+          ]
+        },
+        "sensibilidad_costo_visita": [
+          {
+            "k": 0.5,
+            "costo_politica": 27176.5,
+            "costo_nada": 56100.0,
+            "ahorro_pct": 51.557040998217474,
+            "alarmados_pct": 58.77106045589693
+          },
+          {
+            "k": 1.0,
+            "costo_politica": 44683.0,
+            "costo_nada": 56100.0,
+            "ahorro_pct": 20.35115864527629,
+            "alarmados_pct": 26.640237859266602
+          },
+          {
+            "k": 1.5,
+            "costo_politica": 53093.5,
+            "costo_nada": 56100.0,
+            "ahorro_pct": 5.359180035650624,
+            "alarmados_pct": 13.002973240832508
+          },
+          {
+            "k": 2.0,
+            "costo_politica": 54555.0,
+            "costo_nada": 56100.0,
+            "ahorro_pct": 2.75401069518717,
+            "alarmados_pct": 7.036669970267592
+          },
+          {
+            "k": 3.0,
+            "costo_politica": 55656.0,
+            "costo_nada": 56100.0,
+            "ahorro_pct": 0.7914438502673815,
+            "alarmados_pct": 2.5173439048562933
+          },
+          {
+            "k": 5.0,
+            "costo_politica": 56666.0,
+            "costo_nada": 56100.0,
+            "ahorro_pct": -1.0089126559714723,
+            "alarmados_pct": 0.7135777998017839
+          },
+          {
+            "k": 10.0,
+            "costo_politica": 56300.0,
+            "costo_nada": 56100.0,
+            "ahorro_pct": -0.35650623885918886,
+            "alarmados_pct": 0.03964321110009911
+          }
+        ],
+        "costo_visita_equilibrio": 3.8531383304670337,
+        "calibracion_tabla": [
+          {
+            "desde": 0.0,
+            "hasta": 0.05,
+            "n": 4451,
+            "predicho": 0.019861151776869507,
+            "observado": 0.025387553358795775
+          },
+          {
+            "desde": 0.05,
+            "hasta": 0.1,
+            "n": 505,
+            "predicho": 0.06628085754615405,
+            "observado": 0.041584158415841586
+          },
+          {
+            "desde": 0.1,
+            "hasta": 0.2,
+            "n": 86,
+            "predicho": 0.1304055962362092,
+            "observado": 0.09302325581395349
+          },
+          {
+            "desde": 0.2,
+            "hasta": 0.3,
+            "n": 3,
+            "predicho": 0.2549527139544476,
+            "observado": 0.0
+          }
+        ],
+        "calibracion_global": {
+          "riesgo_medio_predicho": 0.026531924487181627,
+          "tasa_observada": 0.028146679881070367
+        }
+      }
+    },
+    "platt": {
+      "validation": {
+        "a": 0.656226,
+        "b": -1.275901
+      },
+      "test": {
+        "a": 0.429422,
+        "b": -1.947938
+      }
+    },
+    "platt_para_api": {
+      "a": 0.537648,
+      "b": -1.618921
+    }
+  },
+  "tiempo_restante": {
+    "camiones_fallados_train": 1704,
+    "camiones_fallados_holdout": 568,
+    "mae": 45.52670160580425,
+    "mae_baseline_mediana": 67.07872405841661,
+    "mae_ultimas_48": 39.487703792659715,
+    "mae_ultimas_48_baseline": 80.36642496847416,
+    "lecturas_holdout": 26020,
+    "lecturas_ultimas_48": 6344
+  },
+  "supervivencia": {
+    "landmark": 50.0,
+    "vehiculos_en_riesgo": 23333,
+    "especificaciones": {
+      "c_index": 0.6512,
+      "n_covariables": 55
+    },
+    "uso_temprano": {
+      "c_index": 0.6649,
+      "n_covariables": 8
+    },
+    "ambos": {
+      "c_index": 0.6974,
+      "n_covariables": 63
+    },
+    "modelos_covariables_ambas": {
+      "cox": 0.6974,
+      "weibull_aft": 0.6904,
+      "random_survival_forest": 0.7186
+    }
+  },
+  "shap_top": [
+    {
+      "feature": "time_step",
+      "mean_abs_shap": 0.2885
+    },
+    {
+      "feature": "Spec_7",
+      "mean_abs_shap": 0.1465
+    },
+    {
+      "feature": "n_readouts",
+      "mean_abs_shap": 0.1156
+    },
+    {
+      "feature": "life_frac_158_0",
+      "mean_abs_shap": 0.0314
+    },
+    {
+      "feature": "recent_frac_397_12",
+      "mean_abs_shap": 0.0304
+    },
+    {
+      "feature": "Spec_6",
+      "mean_abs_shap": 0.0293
+    },
+    {
+      "feature": "recent_frac_158_9",
+      "mean_abs_shap": 0.0233
+    },
+    {
+      "feature": "life_frac_397_12",
+      "mean_abs_shap": 0.0176
+    },
+    {
+      "feature": "life_frac_397_29",
+      "mean_abs_shap": 0.0163
+    },
+    {
+      "feature": "Spec_1",
+      "mean_abs_shap": 0.016
+    }
+  ]
+}

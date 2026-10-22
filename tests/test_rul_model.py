@@ -114,11 +114,53 @@ def test_predict_last_returns_one_value_per_unit(fitted):
 
 def test_unknown_model_kind_fails_loudly():
     with pytest.raises(ValueError):
-        R.RulEstimator("xgboost").fit(synthetic(3))
+        R.RulEstimator("svm").fit(synthetic(3))
+    with pytest.raises(ValueError):
+        R.SequenceRulEstimator("transformer")
+
+
+@pytest.mark.parametrize("kind", ["ridge", "xgboost"])
+def test_new_tabular_models_beat_a_constant(kind):
+    model = R.RulEstimator(kind, cap=125).fit(synthetic(30, seed=0))
+    test = synthetic(10, seed=99)
+    pred = model.predict_last(test).to_numpy()
+    baseline = np.full(len(pred), float(R.train_rul(synthetic(30, seed=0), 125).mean()))
+    assert R.rmse(np.zeros(len(pred)), pred) < R.rmse(np.zeros(len(pred)), baseline)
+
+
+# ----------------------------------------------------------------------------- redes sobre secuencias
+def _fast_config():
+    from src.models import nets
+
+    return nets.TrainConfig(min_epochs=3, max_epochs=6, patience=2, batch_size=128)
+
+
+def test_sequence_windows_are_padded_causal_and_one_per_row():
+    train = synthetic(4, seed=1)
+    est = R.SequenceRulEstimator("cnn", window=30)
+    est._fit_scaler(train)
+    X, index = est.windows(train)
+    assert X.shape == (len(train), len(est.sensors_), 30)
+    first = X[0]                                          # primer ciclo del primer motor: todo relleno con el mismo ciclo
+    assert np.allclose(first, first[:, [0]])
+    cut = train[(train["unit"] == 1) & (train["cycle"] <= 40)]
+    X_cut, _ = est.windows(cut)
+    assert np.allclose(X_cut, X[:40])                     # quitar el futuro no cambia las ventanas del pasado
+
+
+@pytest.mark.parametrize("kind", ["cnn", "gru"])
+def test_sequence_models_learn_the_degradation(kind):
+    model = R.make_estimator(kind, cap=125, train_config=_fast_config()).fit(synthetic(20, seed=0))
+    assert model.info["epochs_run"] >= 3
+    test = synthetic(6, seed=7)
+    pred = model.predict_last(test).to_numpy()
+    assert (pred >= 0).all() and len(pred) == 6
+    early = model.predict_rows(test).groupby(level="unit").first().to_numpy()
+    assert pred.mean() < early.mean()                    # al final de la vida predice menos RUL que al inicio
 
 
 # ----------------------------------------------------------------------------- datos reales
-@pytest.mark.skipif(not (DATA / "train_FD001.txt").exists(), reason="C-MAPSS no descargado (data/raw/cmapss/raw)")
+@pytest.mark.skipif(not (DATA / "train_FD001.txt").exists(), reason="C-MAPSS no descargado (data/raw/cmapss)")
 def test_fd001_error_beats_a_constant_and_meets_the_expected_threshold():
     from src.models.rul_benchmark import read_split
 
@@ -145,7 +187,7 @@ def test_the_estimator_labels_agree_with_the_project_loader():
 
 
 def test_the_exported_metrics_are_consistent_with_themselves():
-    path = ROOT / "tmp_agent_b" / "rul_metrics.json"
+    path = ROOT / "reports" / "cmapss" / "results.json"
     if not path.exists():
         pytest.skip("se genera con `python -m src.models.rul_benchmark`")
     data = json.loads(path.read_text(encoding="utf-8"))
@@ -154,3 +196,7 @@ def test_the_exported_metrics_are_consistent_with_themselves():
         assert s["selected_by_cv"] == pick and s["selected_test"] == s["models"][pick]["test"], name
         for m in s["models"].values():
             assert m["test"]["rmse"] < s["baseline_constant"]["rmse"] and m["test"]["nasa_score"] >= 0
+        if "ensemble" in s["models"]:
+            members = s["models"]["ensemble"]["members"]
+            ranked = sorted((k for k in s["models"] if k != "ensemble"), key=lambda k: s["models"][k]["cv_rmse_rows"])
+            assert members == ranked[: len(members)]
