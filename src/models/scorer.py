@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 
 import joblib
+import numpy as np
 import pandas as pd
 import polars as pl
 
@@ -40,8 +41,9 @@ class RiskScorer:
         platt: dict | None = None,
     ):
         self.model = model
-        # Parametros {a, b} de la recalibracion de Platt. Sin ellos se usan las probabilidades crudas, que
-        # exageran el riesgo (ver el README); con ellos, el costo esperado de cada accion es creible.
+        # Parametros {a, b} de la recalibracion de Platt ajustada en validacion y test juntos. Con features
+        # invariantes a la escala el modelo ya queda cerca de calibrado en promedio, pero todavia exagera en el
+        # tramo de riesgo alto (ver el README); sin estos parametros se usan las probabilidades del modelo.
         self.platt = platt
         self.feature_cols = feature_cols
         self.spec_categories = spec_categories
@@ -76,7 +78,10 @@ class RiskScorer:
         last = E.last_readout_per_vehicle(E.engineer_features(df)).to_pandas()
         for c in SPEC_COLUMNS:
             last[c] = pd.Categorical([specs[c]], categories=self.spec_categories[c])
-        raw = self.model.predict_proba(last[self.feature_cols])
+        X = last[self.feature_cols].copy()
+        numeric = [c for c in self.feature_cols if c not in SPEC_COLUMNS]
+        X[numeric] = X[numeric].replace([np.inf, -np.inf], np.nan)  # cocientes con denominador nulo, igual que al entrenar
+        raw = self.model.predict_proba(X)
         proba = K.apply_platt(raw, self.platt["a"], self.platt["b"]) if self.platt else raw
         expected = C.expected_cost_matrix(proba)[0]
         action = int(expected.argmin())

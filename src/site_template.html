@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mantenimiento predictivo con datos reales</title>
-<meta name="description" content="Decisión de mantenimiento sobre datos reales de camiones pesados (SCANIA Component X): cuánto se ahorra, qué tan frágil es ese ahorro y por qué las probabilidades del modelo no son creíbles.">
+<title>Truck Maintenance Decisions</title>
+<meta name="description" content="Decisión de mantenimiento sobre datos reales de camiones pesados (SCANIA Component X): un cambio de escala oculto entre conjuntos, siete modelos comparados y cuánto aguanta el ahorro si una visita a taller cuesta más.">
 <style>
   :root {
     color-scheme: light;
@@ -93,7 +93,7 @@
     <p class="lede" data-i18n="lede"></p>
     <div class="links">
       <a href="https://github.com/Rxyxs/heavy-truck-predictive-maintenance" data-i18n="link_repo"></a>
-      <a href="https://github.com/Rxyxs/heavy-truck-predictive-maintenance#readme" data-i18n="link_readme"></a>
+      <a id="readmeLink" href="https://github.com/Rxyxs/heavy-truck-predictive-maintenance#readme" data-i18n="link_readme"></a>
       <a href="https://researchdata.se/en/catalogue/dataset/2024-34" data-i18n="link_data"></a>
     </div>
   </header>
@@ -125,18 +125,31 @@
     <p class="fine" id="clipNote" style="margin:6px 0 0"></p>
   </div>
 
-  <h2 data-i18n="h_calib"></h2>
-  <p data-i18n="p_calib"></p>
+  <h2 data-i18n="h_scale"></h2>
+  <p data-i18n="p_scale"></p>
+  <figure><img data-fig="scania_scale_shift.png" alt="" loading="lazy"><figcaption data-i18n="f_scale"></figcaption></figure>
+  <p data-i18n="p_scale2"></p>
   <div class="tablewrap"><table id="tCal"></table></div>
-  <p class="fine" id="calNote"></p>
-  <p data-i18n="p_calib2"></p>
+  <p class="fine" data-i18n="cal_note"></p>
+
+  <h2 data-i18n="h_models"></h2>
+  <p data-i18n="p_models"></p>
+  <div class="tablewrap"><table id="tModels"></table></div>
+  <figure><img data-fig="scania_models.png" alt="" loading="lazy"><figcaption data-i18n="f_models"></figcaption></figure>
 
   <h2 data-i18n="h_results"></h2>
-  <figure><img src="figures/02_matriz_confusion.png" alt="" loading="lazy"><figcaption data-i18n="f_conf"></figcaption></figure>
+  <figure><img data-fig="scania_confusion.png" alt="" loading="lazy"><figcaption data-i18n="f_conf"></figcaption></figure>
   <h3 data-i18n="t_ttf"></h3>
   <div class="tablewrap"><table id="tTtf"></table></div>
   <p class="fine" data-i18n="p_ttf"></p>
-  <figure><img src="figures/03_shap_tiempo_restante.png" alt="" loading="lazy"><figcaption data-i18n="f_shap"></figcaption></figure>
+  <h3 data-i18n="t_surv"></h3>
+  <div class="tablewrap"><table id="tSurv"></table></div>
+  <figure><img data-fig="scania_shap.png" alt="" loading="lazy"><figcaption data-i18n="f_shap"></figcaption></figure>
+
+  <h2 data-i18n="h_others"></h2>
+  <p data-i18n="p_others"></p>
+  <ul id="others"></ul>
+  <figure><img data-fig="overview.png" alt="" loading="lazy"><figcaption data-i18n="f_overview"></figcaption></figure>
 
   <h2 data-i18n="h_limits"></h2>
   <ul id="limits"></ul>
@@ -154,22 +167,23 @@ const I18N = {
   es: {
     theme: "Tema",
     h1: "Mantenimiento predictivo con datos reales de camiones pesados",
-    lede: "Dado el historial de un camión, ¿qué acción de mantenimiento <strong>minimiza el costo esperado</strong>? Lo evalúo con la matriz de costos oficial de un reto con datos reales de SCANIA. El ahorro es real pero <strong>frágil</strong>: depende de cuánto cuesta una visita a taller, y las probabilidades del modelo exageran el riesgo. Aquí puedes comprobarlo.",
+    lede: "Dado el historial de un camión, ¿qué acción de mantenimiento <strong>minimiza el costo esperado</strong>? Lo evalúo con la matriz de costos oficial de un reto construido con datos reales de SCANIA. El dataset esconde una trampa: cada variable viene multiplicada por un factor distinto en entrenamiento, validación y test. Un modelo que lee la escala cruda exagera el riesgo varias veces; con <strong>features invariantes a la escala</strong> las probabilidades se vuelven creíbles y el ahorro aguanta visitas a taller mucho más caras.",
     link_repo: "Código en GitHub", link_readme: "README completo", link_data: "Datos: SCANIA Component X",
-    n_val: "menos costo oficial en validación", n_test: "menos costo oficial en test", n_auc: "AUC de «algún riesgo» en test: señal real, pero modesta",
-    n_be: "costo de una visita (× el del reto) en que el ahorro se agota, en validación y test",
+    n_be: "costo de visita (× el del reto) en que se agota el ahorro de LightGBM con features invariantes, validación / test; con escala cruda, ×{rbv} / ×{rbt}",
+    n_risk: "riesgo medio predicho por el mismo LightGBM en validación, con {ov}% de fallas observadas; con escala cruda, {rrv}%",
+    n_sel: "menos costo oficial en test con el modelo elegido sin mirar test ({model}; IC95% {ct}); {sv}% en validación",
     h_problem: "1. El problema de decisión",
     p_problem: "No es un problema de clasificación: mandar a taller un camión sano cuesta poco, y no detectar una falla cuesta mucho. El reto puntúa cada recomendación con esta matriz. Las filas son lo que le pasa de verdad al camión (0 = sano, 1 a 4 = falla en 24–48, 12–24, 6–12 o 0–6 unidades de tiempo) y las columnas lo que recomienda el sistema.",
     cost_row: "Real", cost_col: "Recomendar", cost_row0: "sano", p_cost_note: "La fila sombreada es el costo de revisar un camión que no lo necesitaba (7 a 10): es la que se mueve con el control de abajo.",
     h_explore: "2. ¿Y si una visita a taller cuesta más?",
-    p_explore: "La política óptima alarma a muchos camiones sanos porque con costos de 7–10 contra 200–500 una falsa alarma es barata. Si una visita cuesta más, debería alarmar menos y el ahorro achicarse. Mueve el control: la decisión se recalcula en tu navegador sobre los {n} camiones de validación y test.",
+    p_explore: "Con costos de 7–10 contra 200–500 una falsa alarma es barata, así que la política óptima alarma a muchos camiones sanos. Si una visita cuesta más, debería alarmar menos y el ahorro achicarse, pero nunca volverse negativo si las probabilidades son creíbles. Mueve el control: la decisión se recalcula en tu navegador sobre los {n} camiones de validación y test, con el mismo LightGBM entrenado sobre dos conjuntos de features.",
     c_title: "Ahorro frente a no hacer nada, según el costo de una visita innecesaria",
-    c_sub: "Línea llena: probabilidades del modelo. Línea punteada: recalibradas. Toca el gráfico (o usa las flechas) para fijar el costo de la visita.",
-    lab_split: "Conjunto:", lab_mode: "Probabilidades:",
-    mode_raw: "Del modelo", mode_recal: "Recalibradas",
+    c_sub: "Línea llena: LightGBM con features invariantes a la escala. Línea punteada: el mismo LightGBM, con los mismos hiperparámetros, sobre features en escala cruda (la versión anterior). Solo cambian las features. Toca el gráfico (o usa las flechas) para fijar el costo de la visita.",
+    lab_split: "Conjunto:", lab_mode: "Features:",
+    mode_lgb: "Invariantes a la escala", mode_raw: "Escala cruda (versión anterior)",
     k_label: "Costo de revisar un camión sano, respecto del reto: ", k_help: "×1 es el costo del reto (7 a 10). ×10 significa que una visita cuesta diez veces más. Las fallas no detectadas (200 a 500) no cambian.",
     split_validation: "Validación", split_test: "Test",
-    series_validation_raw: "Validación, del modelo", series_test_raw: "Test, del modelo", series_validation_recal: "Validación, recalibradas", series_test_recal: "Test, recalibradas",
+    series_validation_lgb: "Validación, invariantes", series_test_lgb: "Test, invariantes", series_validation_raw: "Validación, escala cruda", series_test_raw: "Test, escala cruda",
     r_cost: "Costo con la política", r_nothing: "Costo sin recomendar nada", r_saving: "Ahorro", r_alarm: "Camiones alarmados", r_caught: "Fallas alarmadas", r_false: "Falsas alarmas",
     of: "de",
     v_good: "A este costo de visita la política ahorra {s}% frente a no hacer nada.",
@@ -180,22 +194,36 @@ const I18N = {
     v_be_far: "En esta escala el ahorro no se agota ({s}, {m}).",
     clip_note: "El gráfico se corta en −100% para que se vea la zona de interés; al llegar a ×100 las curvas recortadas están en: {list}.",
     curve_saving: "Ahorro (%)", curve_x: "Costo de la visita, × el del reto (escala logarítmica)", col_k: "Visita ×",
-    h_calib: "3. Las probabilidades del modelo no son creíbles",
-    p_calib: "La decisión óptima solo es óptima si la probabilidad de falla es creíble, y la del modelo no lo es: predice un riesgo medio de {pv}% en validación y {pt}% en test, cuando las fallas observadas son {ov}% y {ot}%. Los camiones que el modelo marca con riesgo de 50% o más fallan en realidad {hv}% y {ht}% de las veces.",
-    cal_range: "Riesgo predicho", cal_n: "Camiones", cal_pred: "Predicho", cal_obs: "Observado", cal_split: "Conjunto",
-    cal_note: "Pendiente de Platt: {av} (ajustada en validación) y {at} (en test). Una pendiente de 1 sería una calibración perfecta; 0,2 quiere decir que el modelo exagera mucho.",
-    p_calib2: "Recalibrar (Platt ajustado en un conjunto y evaluado en el otro, en las dos direcciones) arregla el promedio, pero no la discriminación (el AUC no cambia). El ahorro a costo ×1 queda en {sv}% (validación) y {st}% (test), contra {rv}% y {rt}% con las probabilidades crudas: con unas 140 fallas por conjunto, el ahorro real está entre ~{lo}% y ~{hi}%, y se agota entre ×{b1} y ×{b2}.",
-    h_results: "4. Qué dice el modelo, y qué no",
+    h_scale: "3. Una escala que el dataset cambia entre conjuntos",
+    p_scale: "Las {nv} variables son contadores anonimizados. Al comparar la tasa de uso mediana de cada una entre conjuntos aparece que cada variable viene multiplicada por un factor propio, entre ×{fmin} y ×{fmax}, y que ese factor cambia entre entrenamiento, validación y test. Un clasificador entrenado para distinguir lecturas de entrenamiento de lecturas de validación las separa perfectamente (AUC {a1}); también validación de test (AUC {a3}). Las tasas y contadores heredan el factor; las fracciones de histograma y el cociente entre el ritmo reciente y el de toda la vida lo cancelan. Solo con esas features, el mismo clasificador baja a AUC {b1} y {b3}, y lo que todavía separa los conjuntos es sobre todo <em>cuándo</em> se tomó la lectura: en validación y test el corte cae más tarde en la vida del camión.",
+    f_scale: "Factor de escala de cada variable en validación y test respecto de entrenamiento (mediana de sus bins). Un factor de 1 sería la misma escala.",
+    p_scale2: "Por qué no se veía: en camiones retenidos <em>del propio conjunto de entrenamiento</em>, que comparten su escala, el modelo con escala cruda parece el mejor de todos ({rawsel} de costo esperado por 1.000 camiones, contra {lgbsel} del mismo LightGBM con features invariantes). Solo validación y test, con sus otros factores, lo dejan en evidencia. El artículo que describe el dataset menciona que se aplicaron perturbaciones como escalamiento; no dice que difieran entre conjuntos. La tabla compara la calibración del mismo LightGBM con los dos conjuntos de features.",
+    cal_range: "Riesgo predicho", cal_n: "Camiones", cal_pred: "Predicho", cal_obs: "Observado", cal_split: "Conjunto", cal_model: "Modelo",
+    model_lgb: "Invariantes", model_raw: "Escala cruda",
+    cal_note: "En rojo, los tramos donde el riesgo predicho duplica o más el observado. Con features invariantes el modelo todavía exagera en los tramos altos, pero su promedio queda cerca de lo observado.",
+    h_models: "4. Siete modelos, elegidos sin mirar validación ni test",
+    p_models: "Regresión logística, bosque aleatorio, LightGBM, XGBoost, CatBoost, una red MLP en PyTorch (mínimo 100 épocas, parada temprana y checkpoint) y el promedio de los tres boosting, todos con las mismas filas y las mismas features invariantes. El elegido es el de menor costo esperado en camiones retenidos del entrenamiento, ponderando cada lectura como si se eligiera una al azar por camión (el protocolo de validación y test): <b>{model}</b>. Validación y test se miran una vez, con todos. El margen entre los mejores en los camiones retenidos es menor que la variación entre corridas de la red: en otra corrida la MLP sacó 5.256 y la regla eligió XGBoost.",
+    m_model: "Modelo", m_sel: "Costo retenidos / 1.000", m_val: "Ahorro validación", m_test: "Ahorro test", m_be: "Se agota en (val. / test)",
+    f_models: "Ahorro frente a no hacer nada con intervalo bootstrap al 95% (remuestreo de camiones). Con ~140 camiones que fallan por conjunto, los intervalos de los mejores modelos se solapan.",
+    h_results: "5. Qué dice el modelo, y qué no",
     f_conf: "Matriz de confusión en test con los costos del reto: la regla recomienda casi siempre la clase 4, así que funciona como un interruptor «alarma / sin alarma» y no distingue bien las ventanas intermedias.",
     t_ttf: "Tiempo hasta la falla (camiones que fallan)", t_ttf_h1: "Medida", t_ttf_h2: "Modelo", t_ttf_h3: "Baseline (mediana)",
     ttf_all: "Error medio, todas las lecturas", ttf_48: "Error medio, a menos de 48 unidades de la falla",
-    p_ttf: "El modelo mejora al baseline, pero un error de unas 38 unidades dentro de una ventana de 48 significa que no ubica la falla con precisión. Además es condicional a que el camión falle.",
+    p_ttf: "El modelo mejora al baseline, pero un error de esa magnitud dentro de una ventana de 48 unidades significa que no ubica la falla con precisión. Además es condicional a que el camión falle.",
+    t_surv: "Supervivencia desde un landmark de 50 unidades (uso temprano + especificaciones)", s_model: "Modelo", s_c: "C-index en camiones retenidos",
+    s_names: { cox: "Cox proporcional", weibull_aft: "Weibull AFT", random_survival_forest: "Bosque de supervivencia aleatorio" },
     f_shap: "Lo que más mueve el pronóstico de tiempo restante es cuánto lleva operando el camión (time_step, n_readouts) y su configuración (Spec_7). Las variables operacionales están anonimizadas: no hay diagnóstico físico.",
-    h_limits: "5. Límites",
+    h_others: "6. Otros tres datasets en el repositorio",
+    p_others: "El mismo protocolo (elegir sin mirar el test, intervalos o niveles de azar, redes con mínimo 100 épocas) aplicado a otros tres problemas de mantenimiento:",
+    o_aps: "<b>APS Failure at Scania Trucks</b> (real, {trucks} camiones, sistema de aire comprimido): el modelo elegido por validación cruzada ({model}) cuesta {cost} en test (IC95% {ci}), frente a {winner} del ganador del reto IDA 2016 y {nothing} sin alarmas.",
+    o_cmapss: "<b>NASA C-MAPSS</b> (turbinas simuladas, vida útil restante): RMSE en test {list}.",
+    o_metropt: "<b>MetroPT-3</b> (real, compresor de aire de un tren de metro, sin etiquetas): un autoencoder detecta {det} de 4 fugas reportadas, contra {chance} esperadas por azar, con {fa} falsas alarmas por semana.",
+    f_overview: "Resumen de los cuatro datasets. Detalle en el README.",
+    h_limits: "7. Límites",
     limits: [
       "<b>No son datos mineros.</b> Son camiones pesados de carretera de un fabricante europeo; que los números se transfieran a una faena es un supuesto.",
-      "<b>El ahorro es frágil.</b> Se agota cuando una visita cuesta unas {b1}–{b2} veces lo que supone el reto, y con las probabilidades crudas llega a ser negativo.",
-      "<b>Pocas fallas.</b> Hay {nv} y {nt} camiones que fallan en validación y test; la diferencia de recall entre ambos ({rv}% y {rt}%) es en buena parte ruido.",
+      "<b>El factor de escala es una inferencia.</b> Lo deduzco de los datos (factores consistentes entre los bins de cada variable); el dataset no lo documenta por conjunto.",
+      "<b>Pocas fallas.</b> Hay {nv} y {nt} camiones que fallan en validación y test; los intervalos son anchos y los mejores modelos no se distinguen entre sí con confianza.",
       "<b>La matriz de costos es la del reto.</b> El ahorro vale lo que valgan esos 7–10 y 200–500; el control de arriba existe para eso.",
       "<b>Variables anonimizadas y unidades de tiempo sin especificar.</b>"
     ],
@@ -203,23 +231,24 @@ const I18N = {
   },
   en: {
     theme: "Theme",
-    h1: "Predictive maintenance on real heavy-duty truck data",
-    lede: "Given a truck's history, which maintenance action <strong>minimises expected cost</strong>? I score it with the official cost matrix of a challenge built on real SCANIA data. The saving is real but <strong>fragile</strong>: it depends on what a workshop visit costs, and the model's probabilities overstate the risk. You can check both here.",
+    h1: "Predictive maintenance on real heavy-truck data",
+    lede: "Given a truck's history, which maintenance action <strong>minimises expected cost</strong>? I score it with the official cost matrix of a challenge built on real SCANIA data. The dataset hides a trap: every variable is multiplied by a different factor in training, validation and test. A model that reads the raw scale overstates the risk several-fold; with <strong>scale-invariant features</strong> the probabilities become credible and the saving survives much more expensive workshop visits.",
     link_repo: "Code on GitHub", link_readme: "Full README", link_data: "Data: SCANIA Component X",
-    n_val: "lower official cost on validation", n_test: "lower official cost on test", n_auc: "any-risk AUC on test: real but modest signal",
-    n_be: "visit cost (× the challenge's) at which the saving runs out, on validation and test",
+    n_be: "visit cost (× the challenge's) at which LightGBM's saving runs out with scale-invariant features, validation / test; raw scale: ×{rbv} / ×{rbt}",
+    n_risk: "mean predicted risk of the same LightGBM on validation, against {ov}% observed failures; raw scale: {rrv}%",
+    n_sel: "lower official cost on test for the model picked without looking at test ({model}; 95% CI {ct}); {sv}% on validation",
     h_problem: "1. The decision problem",
     p_problem: "It is not a classification problem: sending a healthy truck to the workshop costs little, and missing a failure costs a lot. The challenge scores each recommendation with this matrix. Rows are what really happens to the truck (0 = healthy, 1 to 4 = failure in 24–48, 12–24, 6–12 or 0–6 time units) and columns are what the system recommends.",
     cost_row: "Actual", cost_col: "Recommend", cost_row0: "healthy", p_cost_note: "The shaded row is the cost of checking a truck that did not need it (7 to 10): it is the one the control below moves.",
     h_explore: "2. What if a workshop visit costs more?",
-    p_explore: "The optimal policy alarms many healthy trucks because with costs of 7–10 against 200–500 a false alarm is cheap. If a visit costs more it should alarm less and the saving should shrink. Move the control: the decision is recomputed in your browser over the {n} validation and test trucks.",
+    p_explore: "With costs of 7–10 against 200–500 a false alarm is cheap, so the optimal policy alarms many healthy trucks. If a visit costs more it should alarm less and the saving should shrink, but never turn negative if the probabilities are credible. Move the control: the decision is recomputed in your browser over the {n} validation and test trucks, for the same LightGBM trained on two feature sets.",
     c_title: "Saving against doing nothing, by the cost of an unnecessary visit",
-    c_sub: "Solid line: the model's probabilities. Dashed line: recalibrated. Tap the chart (or use the arrow keys) to set the visit cost.",
-    lab_split: "Dataset:", lab_mode: "Probabilities:",
-    mode_raw: "From the model", mode_recal: "Recalibrated",
+    c_sub: "Solid line: LightGBM on scale-invariant features. Dashed line: the same LightGBM, same hyperparameters, on raw-scale features (the previous version). Only the features change. Tap the chart (or use the arrow keys) to set the visit cost.",
+    lab_split: "Dataset:", lab_mode: "Features:",
+    mode_lgb: "Scale-invariant", mode_raw: "Raw scale (previous version)",
     k_label: "Cost of checking a healthy truck, relative to the challenge: ", k_help: "×1 is the challenge's cost (7 to 10). ×10 means a visit costs ten times more. Missed failures (200 to 500) do not change.",
     split_validation: "Validation", split_test: "Test",
-    series_validation_raw: "Validation, from the model", series_test_raw: "Test, from the model", series_validation_recal: "Validation, recalibrated", series_test_recal: "Test, recalibrated",
+    series_validation_lgb: "Validation, invariant", series_test_lgb: "Test, invariant", series_validation_raw: "Validation, raw scale", series_test_raw: "Test, raw scale",
     r_cost: "Cost with the policy", r_nothing: "Cost of recommending nothing", r_saving: "Saving", r_alarm: "Trucks alarmed", r_caught: "Failures alarmed", r_false: "False alarms",
     of: "of",
     v_good: "At this visit cost the policy saves {s}% against doing nothing.",
@@ -230,33 +259,52 @@ const I18N = {
     v_be_far: "On this scale the saving never runs out ({s}, {m}).",
     clip_note: "The chart is cut at −100% so the interesting region stays visible; by ×100 the clipped curves are at: {list}.",
     curve_saving: "Saving (%)", curve_x: "Visit cost, × the challenge's (log scale)", col_k: "Visit ×",
-    h_calib: "3. The model's probabilities are not credible",
-    p_calib: "The optimal decision is only optimal if the failure probability is credible, and the model's is not: it predicts a mean risk of {pv}% on validation and {pt}% on test, while the observed failure rates are {ov}% and {ot}%. Trucks the model puts at 50% risk or more actually fail {hv}% and {ht}% of the time.",
-    cal_range: "Predicted risk", cal_n: "Trucks", cal_pred: "Predicted", cal_obs: "Observed", cal_split: "Dataset",
-    cal_note: "Platt slope: {av} (fitted on validation) and {at} (on test). A slope of 1 would be perfect calibration; 0.2 means the model overstates a lot.",
-    p_calib2: "Recalibrating (Platt fitted on one set and evaluated on the other, in both directions) fixes the average but not the discrimination (AUC is unchanged). The saving at ×1 becomes {sv}% (validation) and {st}% (test), against {rv}% and {rt}% with the raw probabilities: with about 140 failing trucks per set, the real saving lies between ~{lo}% and ~{hi}%, and runs out between ×{b1} and ×{b2}.",
-    h_results: "4. What the model says, and what it does not",
+    h_scale: "3. A scale the dataset changes between splits",
+    p_scale: "All {nv} variables are anonymised counters. Comparing the median usage rate of each one across splits shows that every variable is multiplied by its own factor, between ×{fmin} and ×{fmax}, and that the factor changes between training, validation and test. A classifier trained to tell training readouts from validation readouts separates them perfectly (AUC {a1}); validation from test as well (AUC {a3}). Rates and counters inherit the factor; histogram fractions and the ratio of the recent to the lifetime rate cancel it. With only those features the same classifier drops to AUC {b1} and {b3}, and what still separates the splits is mostly <em>when</em> the readout was taken: in validation and test the cut point sits later in the truck's life.",
+    f_scale: "Scale factor of each variable in validation and test relative to training (median over its bins). A factor of 1 would be the same scale.",
+    p_scale2: "Why it went unnoticed: on trucks held out <em>from the training split itself</em>, which share its scale, the raw-scale model looks like the best of all ({rawsel} expected cost per 1,000 trucks, against {lgbsel} for the same LightGBM on invariant features). Only validation and test, with their other factors, expose it. The paper describing the dataset mentions that perturbations like scaling were applied; it does not say they differ between splits. The table compares the calibration of the same LightGBM on the two feature sets.",
+    cal_range: "Predicted risk", cal_n: "Trucks", cal_pred: "Predicted", cal_obs: "Observed", cal_split: "Dataset", cal_model: "Model",
+    model_lgb: "Invariant", model_raw: "Raw scale",
+    cal_note: "In red, the bands where the predicted risk is at least twice the observed one. With invariant features the model still overstates in the top bands, but its average is close to what is observed.",
+    h_models: "4. Seven models, selected without looking at validation or test",
+    p_models: "Logistic regression, random forest, LightGBM, XGBoost, CatBoost, an MLP in PyTorch (at least 100 epochs, early stopping and checkpoint) and the mean of the three boosting models, all on the same rows and the same invariant features. The pick is the lowest expected cost on held-out training trucks, weighting each readout as if one were drawn at random per truck (the validation and test protocol): <b>{model}</b>. Validation and test are looked at once, with all of them. The margin between the best models on held-out trucks is smaller than the run-to-run variation of the network: in another run the MLP scored 5,256 and the rule picked XGBoost.",
+    m_model: "Model", m_sel: "Held-out cost / 1,000", m_val: "Validation saving", m_test: "Test saving", m_be: "Runs out at (val. / test)",
+    f_models: "Saving against doing nothing with a 95% bootstrap interval (resampling trucks). With ~140 failing trucks per set, the intervals of the best models overlap.",
+    h_results: "5. What the model says, and what it does not",
     f_conf: "Confusion matrix on test with the challenge's costs: the rule mostly recommends class 4, so it works as an “alarm / no alarm” switch and does not separate the intermediate windows well.",
     t_ttf: "Time to failure (trucks that fail)", t_ttf_h1: "Measure", t_ttf_h2: "Model", t_ttf_h3: "Baseline (median)",
     ttf_all: "Mean error, all readouts", ttf_48: "Mean error, within 48 units of failure",
-    p_ttf: "The model beats the baseline, but an error of about 38 units inside a 48-unit window means it cannot locate the failure precisely. It is also conditional on the truck failing.",
+    p_ttf: "The model beats the baseline, but an error of that size inside a 48-unit window means it cannot locate the failure precisely. It is also conditional on the truck failing.",
+    t_surv: "Survival from a landmark at 50 time units (early usage + specifications)", s_model: "Model", s_c: "C-index on held-out trucks",
+    s_names: { cox: "Cox proportional hazards", weibull_aft: "Weibull AFT", random_survival_forest: "Random survival forest" },
     f_shap: "What moves the time-to-failure forecast most is how long the truck has been running (time_step, n_readouts) and its configuration (Spec_7). The operating variables are anonymised: no physical diagnosis.",
-    h_limits: "5. Limits",
+    h_others: "6. Three more datasets in the repository",
+    p_others: "The same protocol (pick without looking at test, intervals or chance levels, networks with at least 100 epochs) applied to three other maintenance problems:",
+    o_aps: "<b>APS Failure at Scania Trucks</b> (real, {trucks} trucks, compressed-air system): the model picked by cross-validation ({model}) costs {cost} on test (95% CI {ci}), against {winner} for the winner of the IDA 2016 challenge and {nothing} with no alarms.",
+    o_cmapss: "<b>NASA C-MAPSS</b> (simulated turbofans, remaining useful life): test RMSE {list}.",
+    o_metropt: "<b>MetroPT-3</b> (real, air compressor of a metro train, no labels): an autoencoder detects {det} of 4 reported leaks, against {chance} expected by chance, with {fa} false alarms per week.",
+    f_overview: "Summary of the four datasets. Details in the README.",
+    h_limits: "7. Limits",
     limits: [
       "<b>Not mining data.</b> These are on-road heavy-duty trucks from a European manufacturer; that the numbers transfer to a mine is an assumption.",
-      "<b>The saving is fragile.</b> It runs out when a visit costs about {b1}–{b2} times what the challenge assumes, and with the raw probabilities it turns negative.",
-      "<b>Few failures.</b> There are {nv} and {nt} failing trucks in validation and test; the recall gap between them ({rv}% and {rt}%) is largely noise.",
+      "<b>The scale factor is an inference.</b> I deduce it from the data (factors consistent across the bins of each variable); the dataset does not document it per split.",
+      "<b>Few failures.</b> There are {nv} and {nt} failing trucks in validation and test; the intervals are wide and the best models cannot be told apart with confidence.",
       "<b>The cost matrix is the challenge's.</b> The saving is only as good as those 7–10 and 200–500 figures; the control above exists for that.",
       "<b>Anonymised variables and unspecified time units.</b>"
     ],
     foot: "Data © Scania CV AB, CC BY 4.0. MIT code. "
   }
 };
+const MODEL_NAMES = {
+  es: { logistic: "Regresión logística", random_forest: "Bosque aleatorio", lightgbm: "LightGBM", xgboost: "XGBoost", catboost: "CatBoost", mlp: "MLP (PyTorch)", ensemble: "Ensamble (promedio GBM)", lightgbm_escala_cruda: "LightGBM, escala cruda", ridge: "Ridge", cnn: "CNN 1D", gru: "GRU" },
+  en: { logistic: "Logistic regression", random_forest: "Random forest", lightgbm: "LightGBM", xgboost: "XGBoost", catboost: "CatBoost", mlp: "MLP (PyTorch)", ensemble: "Ensemble (GBM mean)", lightgbm_escala_cruda: "LightGBM, raw scale", ridge: "Ridge", cnn: "1D-CNN", gru: "GRU" },
+};
 
 let lang = "es";
 try { lang = localStorage.getItem("lang") || (navigator.language || "es").slice(0, 2); } catch (e) {}
 if (!I18N[lang]) lang = "es";
 const t = (k) => I18N[lang][k];
+const mname = (k) => MODEL_NAMES[lang][k] || k;
 const loc = () => (lang === "es" ? "es-CL" : "en-US");
 const num = (v, d = 0) => v.toLocaleString(loc(), { minimumFractionDigits: d, maximumFractionDigits: d });
 const fill = (s, o) => s.replace(/\{(\w+)\}/g, (_, k) => (k in o ? o[k] : ""));
@@ -265,8 +313,9 @@ const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n
 /* ---------------------------------------------------------- decision y costo */
 const COST = DATA.cost_matrix;
 const SPLITS = ["validation", "test"];
-const MODES = ["raw", "recal"];
-const K_MIN = 0.5, K_MAX = 100, EPS = 1e-12;
+const MODES = ["lgb", "raw"];
+const FIELD = { lgb: "l", raw: "r" };
+const K_MIN = 0.5, K_MAX = 100;
 const kFromSlider = (s) => K_MIN * Math.pow(K_MAX / K_MIN, s / 1000);
 const sliderFromK = (k) => Math.round((Math.log(k / K_MIN) / Math.log(K_MAX / K_MIN)) * 1000);
 
@@ -274,23 +323,12 @@ const PROB = {};
 function probs(split, mode) {
   const key = split + "|" + mode;
   if (PROB[key]) return PROB[key];
-  const src = DATA.pred[split].p, n = DATA.pred[split].y.length, out = new Float64Array(n * 5);
+  const src = DATA.pred[split][FIELD[mode]], out = new Float64Array(src.length);
   for (let i = 0; i < out.length; i++) out[i] = src[i] / 1e6;
-  if (mode === "recal") {
-    // Platt ajustado en el OTRO conjunto: la misma funcion que src/models/calibration.py::apply_platt.
-    const other = split === "test" ? "validation" : "test", a = DATA.platt[other].a, b = DATA.platt[other].b;
-    for (let v = 0; v < n; v++) {
-      const o = v * 5, risk = 1 - out[o], r = Math.min(1 - 1e-6, Math.max(1e-6, risk));
-      const r2 = 1 / (1 + Math.exp(-(a * Math.log(r / (1 - r)) + b)));
-      const scale = risk > EPS ? r2 / Math.max(risk, EPS) : 0;
-      for (let k = 1; k < 5; k++) out[o + k] *= scale;
-      out[o] = 1 - r2;
-    }
-  }
   return (PROB[key] = out);
 }
 
-function evaluate(split, k, mode = "raw") {
+function evaluate(split, k, mode = "lgb") {
   const y = DATA.pred[split].y, p = probs(split, mode), n = y.length;
   const C = COST.map((row, i) => row.map((c, j) => (i === 0 && j > 0 ? c * k : c)));
   let policy = 0, nothing = 0, alarms = 0, fails = 0, caught = 0, healthy = 0, falseAlarms = 0;
@@ -314,7 +352,7 @@ const curves = {};
 function computeCurves() { SPLITS.forEach((s) => MODES.forEach((m) => { curves[s + "|" + m] = GRID.map((k) => evaluate(s, k, m).saving); })); }
 
 // Mismo criterio que calibration.break_even: mayor k de una grilla de 301 puntos (x0,05 a x2000) donde el ahorro
-// supera 1%. No depende del control, asi que se calcula una vez por (conjunto, modo).
+// supera 1%. No depende del control, asi que se calcula una vez por (conjunto, modelo).
 const BE_THRESHOLD = 1.0, BE_GRID = Array.from({ length: 301 }, (_, i) => 0.05 * Math.pow(2000 / 0.05, i / 300)), BE_CACHE = {};
 function breakEven(split, mode) {
   const key = split + "|" + mode;
@@ -325,7 +363,8 @@ function breakEven(split, mode) {
 }
 
 /* ------------------------------------------------------------------- vistas */
-const state = { split: "test", mode: "raw", k: 1 };
+const state = { split: "test", mode: "lgb", k: 1 };
+const pct = (v, d = 1) => num(v * 100, d);
 
 function renderTables() {
   const rows = COST.map((row, i) => {
@@ -334,27 +373,47 @@ function renderTables() {
   }).join("");
   const heads = [0, 1, 2, 3, 4].map((j) => `<th>${t("cost_col")} ${j}</th>`).join("");
   $("tCost").innerHTML = `<thead><tr><th>${t("cost_row")}</th>${heads}</tr></thead><tbody>${rows}</tbody>`;
+
   const f = DATA.ttf;
   $("tTtf").innerHTML = `<thead><tr><th>${t("t_ttf_h1")}</th><th>${t("t_ttf_h2")}</th><th>${t("t_ttf_h3")}</th></tr></thead><tbody>` +
     `<tr><td>${t("ttf_all")}</td><td>${num(f.mae, 1)}</td><td>${num(f.mae_base, 1)}</td></tr>` +
     `<tr><td>${t("ttf_48")}</td><td>${num(f.mae48, 1)}</td><td>${num(f.mae48_base, 1)}</td></tr></tbody>`;
-  const body = SPLITS.flatMap((s) => DATA.calibration[s].map((r) =>
-    `<tr><td>${t("split_" + s)}</td><td>${num(r.desde * 100, 0)}–${num(r.hasta * 100, 0)}%</td><td>${num(r.n)}</td><td class="${r.predicho > 2 * r.observado ? "over" : ""}">${num(r.predicho * 100, 1)}%</td><td>${num(r.observado * 100, 1)}%</td></tr>`)).join("");
-  $("tCal").innerHTML = `<thead><tr><th>${t("cal_split")}</th><th>${t("cal_range")}</th><th>${t("cal_n")}</th><th>${t("cal_pred")}</th><th>${t("cal_obs")}</th></tr></thead><tbody>${body}</tbody>`;
+
+  $("tSurv").innerHTML = `<thead><tr><th>${t("s_model")}</th><th>${t("s_c")}</th></tr></thead><tbody>` +
+    Object.entries(DATA.survival).map(([k, v]) => `<tr><td>${t("s_names")[k] || k}</td><td>${num(v, 3)}</td></tr>`).join("") + `</tbody>`;
+
+  const cal = SPLITS.flatMap((s) => MODES.flatMap((m) => DATA.calibration[s][m].map((r) =>
+    `<tr><td>${t("split_" + s)}</td><td>${t("model_" + m)}</td><td>${num(r.desde * 100, 0)}–${num(r.hasta * 100, 0)}%</td><td>${num(r.n)}</td><td class="${r.predicho > 2 * r.observado ? "over" : ""}">${num(r.predicho * 100, 1)}%</td><td>${num(r.observado * 100, 1)}%</td></tr>`))).join("");
+  $("tCal").innerHTML = `<thead><tr><th>${t("cal_split")}</th><th>${t("cal_model")}</th><th>${t("cal_range")}</th><th>${t("cal_n")}</th><th>${t("cal_pred")}</th><th>${t("cal_obs")}</th></tr></thead><tbody>${cal}</tbody>`;
+
+  const ci = (c) => "[" + num(c[0], 0) + ", " + num(c[1], 0) + "]";
+  const be = (v) => (v == null ? "—" : "×" + num(v, 1));
+  const body = DATA.models.map((m) => `<tr${m.key === DATA.selected ? ' style="font-weight:650"' : ""}><td>${mname(m.key)}</td><td>${num(m.select, 0)}</td>` +
+    `<td>${num(m.val_ahorro_pct, 1)}% ${ci(m.val_ahorro_ic95)}</td><td>${num(m.tes_ahorro_pct, 1)}% ${ci(m.tes_ahorro_ic95)}</td><td>${be(m.val_be)} / ${be(m.tes_be)}</td></tr>`).join("");
+  $("tModels").innerHTML = `<thead><tr><th>${t("m_model")}</th><th>${t("m_sel")}</th><th>${t("m_val")}</th><th>${t("m_test")}</th><th>${t("m_be")}</th></tr></thead><tbody>${body}</tbody>`;
 }
 
 function textVars() {
-  const k = DATA.key, c = DATA.cal_summary, p = (v) => num(v * 100, 1);
+  const k = DATA.key, sc = DATA.scale;
+  const raw = DATA.models.find((m) => m.key === "lightgbm_escala_cruda"), lgb = DATA.models.find((m) => m.key === "lightgbm");
   return {
-    n: num(k.n_val + k.n_test),
-    pv: p(c.validation.pred), pt: p(c.test.pred), ov: p(c.validation.obs), ot: p(c.test.obs),
-    hv: num(c.validation.top_obs * 100, 0), ht: num(c.test.top_obs * 100, 0),
-    av: num(DATA.platt.validation.a, 2), at: num(DATA.platt.test.a, 2),
-    sv: num(k.recal_saving_val, 0), st: num(k.recal_saving_test, 0), rv: num(k.saving_val, 0), rt: num(k.saving_test, 0),
-    lo: num(Math.min(k.recal_saving_val, k.recal_saving_test, k.saving_val, k.saving_test), 0), hi: num(Math.max(k.recal_saving_val, k.recal_saving_test, k.saving_val, k.saving_test), 0),
-    b1: num(Math.min(k.be_val, k.be_test, k.recal_be_val, k.recal_be_test), 1), b2: num(Math.max(k.be_val, k.be_test, k.recal_be_val, k.recal_be_test), 1),
-    nv: k.fails_val, nt: k.fails_test, rvv: num(k.recall_val * 100, 0), rtt: num(k.recall_test * 100, 0),
+    n: num(k.n_val + k.n_test), model: mname(DATA.selected),
+    nv: sc.n_vars, fmin: num(sc.min, 2), fmax: num(sc.max, 1),
+    a1: num(sc.adv_raw.train_vs_validation, 2), a3: num(sc.adv_raw.validation_vs_test, 2),
+    b1: num(sc.adv_inv.train_vs_validation, 2), b3: num(sc.adv_inv.validation_vs_test, 2),
+    rawsel: num(raw.select, 0), lgbsel: num(lgb.select, 0), sv: num(k.val_saving, 1),
+    ct: "[" + num(k.tes_ci[0], 1) + ", " + num(k.tes_ci[1], 1) + "]",
+    rbv: num(k.val_be_raw, 1), rbt: num(k.tes_be_raw, 1), ov: pct(k.val_obs), rrv: pct(k.val_risk_raw),
+    fnv: k.fails_val, fnt: k.fails_test,
   };
+}
+
+function renderOthers() {
+  const o = DATA.others, items = [];
+  if (o.aps) items.push(fill(t("o_aps"), { trucks: num(o.aps.trucks), model: mname(o.aps.model), cost: num(o.aps.cost), ci: "[" + num(o.aps.ci[0]) + ", " + num(o.aps.ci[1]) + "]", winner: num(o.aps.winner), nothing: num(o.aps.nothing) }));
+  if (o.cmapss) items.push(fill(t("o_cmapss"), { list: Object.entries(o.cmapss).map(([s, d]) => `${s} ${num(d.rmse, 1)} (${mname(d.model)}; ${lang === "es" ? "constante" : "constant"} ${num(d.baseline, 1)})`).join(", ") }));
+  if (o.metropt) items.push(fill(t("o_metropt"), { det: o.metropt.detected, chance: num(o.metropt.chance, 1), fa: num(o.metropt.fa_week, 1) }));
+  $("others").innerHTML = items.map((x) => `<li>${x}</li>`).join("");
 }
 
 function renderStatic() {
@@ -362,26 +421,30 @@ function renderStatic() {
   const k = DATA.key, fl = textVars();
   document.querySelectorAll("[data-i18n]").forEach((e) => { const v = t(e.dataset.i18n); if (typeof v === "string") e.innerHTML = fill(v, fl); });
   $("tiles").innerHTML = [
-    ["−" + num(k.saving_val, 0) + "%", t("n_val")], ["−" + num(k.saving_test, 0) + "%", t("n_test")],
-    [num(k.auc_test, 2), t("n_auc")], ["×" + num(k.be_val, 1) + " / ×" + num(k.be_test, 1), t("n_be")],
+    ["×" + num(k.val_be_lgb, 1) + " / ×" + num(k.tes_be_lgb, 1), fill(t("n_be"), fl)], [pct(k.val_risk_lgb) + "%", fill(t("n_risk"), fl)],
+    ["−" + num(k.tes_saving, 0) + "%", fill(t("n_sel"), fl)],
   ].map((x) => `<div class="tile"><div class="n">${x[0]}</div><div class="l">${x[1]}</div></div>`).join("");
-  $("limits").innerHTML = t("limits").map((x) => `<li>${fill(x, { ...fl, rv: fl.rvv, rt: fl.rtt })}</li>`).join("");
-  $("calNote").textContent = fill(t("cal_note"), fl);
-  document.querySelectorAll("figure img").forEach((img) => { img.alt = img.nextElementSibling ? img.nextElementSibling.textContent : ""; });
+  $("limits").innerHTML = t("limits").map((x) => `<li>${fill(x, { ...fl, nv: fl.fnv, nt: fl.fnt })}</li>`).join("");
+  document.querySelectorAll("img[data-fig]").forEach((img) => {
+    img.src = "figures/" + lang + "/" + img.dataset.fig;
+    img.alt = img.nextElementSibling ? img.nextElementSibling.textContent : "";
+  });
+  $("readmeLink").href = "https://github.com/Rxyxs/heavy-truck-predictive-maintenance/blob/main/" + (lang === "es" ? "README.es.md" : "README.md");
   $("lang").textContent = lang === "es" ? "EN" : "ES";
   document.title = t("h1");
   renderTables();
+  renderOthers();
 }
 
 function renderResult() {
   const r = evaluate(state.split, state.k, state.mode);
   $("kOut").textContent = "×" + num(state.k, state.k < 10 ? 1 : 0);
-  const pct = (a, b) => num((100 * a) / b, 0) + "%";
+  const share = (a, b) => num((100 * a) / b, 0) + "%";
   $("result").innerHTML = [
     [num(r.policy), t("r_cost"), ""], [num(r.nothing), t("r_nothing"), ""],
     [num(r.saving, 1) + "%", t("r_saving"), r.saving > BE_THRESHOLD ? "good" : "bad"],
-    [pct(r.alarms, r.n), t("r_alarm") + " (" + num(r.alarms) + " " + t("of") + " " + num(r.n) + ")", ""],
-    [pct(r.caught, r.fails), t("r_caught") + " (" + num(r.caught) + " " + t("of") + " " + num(r.fails) + ")", ""],
+    [share(r.alarms, r.n), t("r_alarm") + " (" + num(r.alarms) + " " + t("of") + " " + num(r.n) + ")", ""],
+    [share(r.caught, r.fails), t("r_caught") + " (" + num(r.caught) + " " + t("of") + " " + num(r.fails) + ")", ""],
     [num(r.falseAlarms), t("r_false") + " (" + t("of") + " " + num(r.healthy) + ")", ""],
   ].map((x) => `<div class="${x[2]}"><b>${x[0]}</b><span>${x[1]}</span></div>`).join("");
   const be = breakEven(state.split, state.mode);
@@ -410,14 +473,13 @@ function renderCurve() {
   const host = $("plot"); host.innerHTML = "";
   const W = Math.max(300, Math.round(host.clientWidth) || 900), H = W < 560 ? 300 : 360, m = { l: 46, r: 12, t: 26, b: 44 };
   const iw = W - m.l - m.r, ih = H - m.t - m.b;
-  // Piso del eje en -100%: la curva de validacion sin recalibrar cae hasta ~-590% y aplastaria la zona que importa.
-  // Lo que baja mas se recorta y se declara en una nota debajo del grafico.
+  // Piso del eje en -100%: la curva del modelo con escala cruda cae mucho mas y aplastaria la zona que importa.
   const FLOOR = -100;
   const lo = FLOOR, hi = Math.ceil(Math.max(...Object.values(curves).flat()) / 20) * 20, stepY = 20;
   const X = (k) => m.l + (Math.log(k / K_MIN) / Math.log(K_MAX / K_MIN)) * iw;
   const Y = (v) => m.t + ih - ((Math.max(lo, v) - lo) / (hi - lo)) * ih;
   const colors = { validation: css("--s1"), test: css("--s2") };
-  const series = SPLITS.flatMap((s) => MODES.map((md) => ({ s, md, key: s + "|" + md, color: colors[s], dash: md === "recal" ? "6 4" : "none", label: t("series_" + s + "_" + md) })));
+  const series = SPLITS.flatMap((s) => MODES.map((md) => ({ s, md, key: s + "|" + md, color: colors[s], dash: md === "raw" ? "6 4" : "none", label: t("series_" + s + "_" + md) })));
   const clipped = series.map((sr) => ({ sr, min: Math.min(...curves[sr.key]) })).filter((x) => x.min < FLOOR);
   $("clipNote").textContent = clipped.length ? fill(t("clip_note"), { list: clipped.map((x) => x.sr.label + ": " + num(x.min, 0) + "%").join("; ") }) : "";
   const ns = "http://www.w3.org/2000/svg";
@@ -429,10 +491,10 @@ function renderCurve() {
   el("text", { x: 4, y: 12, "font-size": 11, fill: css("--ink-2") }, t("curve_saving"));
   series.forEach((sr) => {
     const d = GRID.map((k, i) => (i ? "L" : "M") + X(k).toFixed(1) + " " + Y(curves[sr.key][i]).toFixed(1)).join("");
-    el("path", { d, fill: "none", stroke: sr.color, "stroke-width": sr.md === "raw" ? 2.4 : 2, "stroke-dasharray": sr.dash, "stroke-linejoin": "round", "stroke-linecap": "round" });
+    el("path", { d, fill: "none", stroke: sr.color, "stroke-width": sr.md === "lgb" ? 2.4 : 2, "stroke-dasharray": sr.dash, "stroke-linejoin": "round", "stroke-linecap": "round" });
   });
-  const guide = el("line", { y1: m.t, y2: m.t + ih, stroke: css("--ink"), "stroke-width": 1.2, "stroke-dasharray": "2 3" });
-  const dots = series.map((sr) => el("circle", { r: 4.5, fill: sr.md === "raw" ? sr.color : css("--surface"), stroke: sr.color, "stroke-width": 2 }));
+  const guide = el("line", { y1: m.t, y2: m.t + ih, stroke: css("--ink"), "stroke-width": 1.2 });
+  const dots = series.map((sr) => el("circle", { r: 4.5, fill: sr.md === "lgb" ? sr.color : css("--surface"), stroke: sr.color, "stroke-width": 2 }));
   const tip = document.createElement("div"); tip.className = "tip"; tip.style.display = "none"; host.appendChild(tip);
   function place() {
     const x = X(state.k); guide.setAttribute("x1", x); guide.setAttribute("x2", x);
@@ -443,7 +505,7 @@ function renderCurve() {
   function setK(k) { state.k = k; $("k").value = sliderFromK(k); renderResult(); place(); }
   function hover(ev) {
     const k = kAt(ev); let h = `<div style="color:var(--ink-2);margin-bottom:3px">${t("col_k")}${num(k, k < 10 ? 1 : 0)}</div>`;
-    series.forEach((sr) => { h += `<div><span class="sw${sr.md === "recal" ? " dash" : ""}" style="background:${sr.color};border-color:${sr.color}"></span>${sr.label}: <b>${num(evaluate(sr.s, k, sr.md).saving, 1)}%</b></div>`; });
+    series.forEach((sr) => { h += `<div><span class="sw${sr.md === "raw" ? " dash" : ""}" style="background:${sr.color};border-color:${sr.color}"></span>${sr.label}: <b>${num(evaluate(sr.s, k, sr.md).saving, 1)}%</b></div>`; });
     tip.innerHTML = h; tip.style.display = "block";
     const px = (X(k) / W) * host.clientWidth, w = tip.offsetWidth; tip.style.left = Math.max(w / 2, Math.min(host.clientWidth - w / 2, px)) + "px"; tip.style.top = "8px";
   }
@@ -454,7 +516,7 @@ function renderCurve() {
     if (ev.key === "ArrowLeft") ns2 = s - 20; else if (ev.key === "ArrowRight") ns2 = s + 20; else if (ev.key === "Home") ns2 = 0; else if (ev.key === "End") ns2 = 1000;
     if (ns2 != null) { setK(kFromSlider(Math.max(0, Math.min(1000, ns2)))); ev.preventDefault(); }
   });
-  $("legend").innerHTML = series.map((sr) => `<span><span class="sw${sr.md === "recal" ? " dash" : ""}" style="background:${sr.color};border-color:${sr.color}"></span>${sr.label}</span>`).join("");
+  $("legend").innerHTML = series.map((sr) => `<span><span class="sw${sr.md === "raw" ? " dash" : ""}" style="background:${sr.color};border-color:${sr.color}"></span>${sr.label}</span>`).join("");
 }
 
 function renderAll() { renderStatic(); renderChips(); renderResult(); renderCurve(); }

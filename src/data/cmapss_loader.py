@@ -1,4 +1,8 @@
-"""Carga del dataset NASA C-MAPSS, subconjunto FD001 (turbofan simulado, una condicion operativa, un modo de falla).
+"""Carga del dataset NASA C-MAPSS (turbofan simulado). FD001 con sus variables moviles; FD001-FD004 en crudo.
+
+Los cuatro subconjuntos combinan una o seis condiciones operativas y uno o dos modos de falla:
+FD001 (1 condicion, 1 modo), FD002 (6, 1), FD003 (1, 2), FD004 (6, 2). ``download_all`` los descarga
+todos, verificando cada archivo por SHA-256, y ``read_subset`` los lee en crudo.
 
 FD001 trae 100 motores de entrenamiento, corridos hasta la falla, y 100 motores de test, cortados en un
 ciclo previo a la falla; el archivo ``RUL_FD001.txt`` da la vida util restante real (RUL) de cada motor de
@@ -30,7 +34,7 @@ import requests
 
 ROOT = Path(__file__).resolve().parents[2]
 RAW_DIR = ROOT / "data" / "raw" / "cmapss"
-SUMMARY_PATH = ROOT / "tmp_agent_a" / "dataset_summary.json"
+SUMMARY_PATH = ROOT / "reports" / "cmapss" / "dataset_summary.json"
 
 URL = "https://phm-datasets.s3.amazonaws.com/NASA/6.+Turbofan+Engine+Degradation+Simulation+Data+Set.zip"
 OUTER_SHA256 = "c9c5dec12a945a82e8bb4446589d7fb3cc057b5e5d81fa1a12e25ee9912ad3b2"
@@ -39,6 +43,24 @@ FILES_SHA256 = {
     "train_FD001.txt": "963b5e22825b34d8b21c69e1aeb4af3e647050eb672ee8834ba4b5d91d2de0f8",
     "test_FD001.txt": "3cda7109ce17bafb5443f2ac926cfcf88154b941b8c4cf95eb55d1ddd6f52851",
     "RUL_FD001.txt": "a19c8ec94931949d0485bdc35118206e9c81c4547b422efb9cf86f4ceddbceca",
+}
+
+SUBSETS = ["FD001", "FD002", "FD003", "FD004"]
+ALL_FILES_SHA256 = {
+    **FILES_SHA256,
+    "train_FD002.txt": "dac6c4dbc4e7c1bdeb5747da3d313d05c395bb99801b44a002b26a2ba13d788f",
+    "test_FD002.txt": "de7b5bf7e998a985c378488480528b7c02cff1406a46740def362dda8d9b4e02",
+    "RUL_FD002.txt": "c851dd96a6ea6998d3c4a8f834d3c8013aa90e93a6ed950dc826ad0655b2906b",
+    "train_FD003.txt": "2abbe9968cc5e8eb091980f51b20f62bb4127336d3482cb52071d53bf23329e2",
+    "test_FD003.txt": "299babd63c8d987cef079c4a425429f33b3a34797d803bbe2ad48c29dbd0d790",
+    "RUL_FD003.txt": "df1e0566306b174a2de41c67a3e7a51877889598b78643fc3e5685259091b7cb",
+    "train_FD004.txt": "27ef6160b6a1dcb2613a88de9c239f763b223f02cdc41dc5cdedc5dc189b6218",
+    "test_FD004.txt": "1dc675fff0624bac10786927c6715b37d1297657137400d2b1a3138d777a3ba5",
+    "RUL_FD004.txt": "196b836b85a95ac7fdbbf29c5fdf1657382eafa445644d114ffaaf50dc2975e1",
+}
+SUBSET_INFO = {
+    "FD001": {"conditions": 1, "fault_modes": 1}, "FD002": {"conditions": 6, "fault_modes": 1},
+    "FD003": {"conditions": 1, "fault_modes": 2}, "FD004": {"conditions": 6, "fault_modes": 2},
 }
 
 SETTINGS = ["setting_1", "setting_2", "setting_3"]
@@ -79,7 +101,7 @@ def _fetch(url: str, retries: int) -> bytes:
 
 
 def extract_fd001(outer_zip: bytes, raw_dir: Path, expected: dict[str, str] = FILES_SHA256) -> list[Path]:
-    """Saca los archivos FD001 del zip anidado de NASA y verifica el checksum de cada uno."""
+    """Saca los archivos pedidos (por defecto FD001) del zip anidado de NASA y verifica el checksum de cada uno."""
     with zipfile.ZipFile(io.BytesIO(outer_zip)) as outer, zipfile.ZipFile(io.BytesIO(outer.read(INNER_ZIP))) as inner:
         payload = {name: inner.read(name) for name in expected}
     bad = [name for name, data in payload.items() if _sha256(data) != expected[name]]
@@ -102,6 +124,35 @@ def download(raw_dir: Path = RAW_DIR, url: str = URL, retries: int = 3, force: b
     if _sha256(blob) != OUTER_SHA256:
         raise RuntimeError("El zip descargado no coincide con el checksum publicado")
     return extract_fd001(blob, raw_dir)
+
+
+def download_all(raw_dir: Path = RAW_DIR, url: str = URL, retries: int = 3, force: bool = False) -> list[Path]:
+    """Descarga los 12 archivos de FD001-FD004 si falta alguno o no coincide su checksum."""
+    if not force and all((raw_dir / n).is_file() and _sha256((raw_dir / n).read_bytes()) == h
+                         for n, h in ALL_FILES_SHA256.items()):
+        return [raw_dir / n for n in ALL_FILES_SHA256]
+    blob = _fetch(url, retries)
+    if _sha256(blob) != OUTER_SHA256:
+        raise RuntimeError("El zip descargado no coincide con el checksum publicado")
+    return extract_fd001(blob, raw_dir, expected=ALL_FILES_SHA256)
+
+
+def read_subset(subset: str, raw_dir: Path = RAW_DIR, auto_download: bool = True):
+    """(train, test, RUL real del ultimo ciclo de cada motor de test) de un subconjunto, en crudo.
+
+    Columnas: ``unit``, ``cycle``, ``op1..op3``, ``s1..s21`` (pandas), el formato que usa ``rul_estimator``.
+    """
+    import pandas as pd
+
+    if subset not in SUBSETS:
+        raise ValueError(f"subconjunto desconocido: {subset!r}")
+    if auto_download:
+        download_all(raw_dir)
+    names = ["unit", "cycle", "op1", "op2", "op3", *SENSORS]
+    train = pd.read_csv(raw_dir / f"train_{subset}.txt", sep=r"\s+", header=None, names=names)
+    test = pd.read_csv(raw_dir / f"test_{subset}.txt", sep=r"\s+", header=None, names=names)
+    rul = np.loadtxt(raw_dir / f"RUL_{subset}.txt").astype(float).reshape(-1)
+    return train, test, rul
 
 
 # ------------------------------------------------------------------ lectura
@@ -259,7 +310,7 @@ def summarize(ds: CMAPSSDataset) -> dict:
 
 def main() -> None:
     ds = build_fd001()
-    SUMMARY_PATH.parent.mkdir(exist_ok=True)
+    SUMMARY_PATH.parent.mkdir(parents=True, exist_ok=True)
     SUMMARY_PATH.write_text(json.dumps(summarize(ds), indent=1, ensure_ascii=False), encoding="utf-8")
     print(f"train {ds.train.shape}, test {ds.test.shape}, test_last {ds.test_last.shape}; resumen en {SUMMARY_PATH}")
 

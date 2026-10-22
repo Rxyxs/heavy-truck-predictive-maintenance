@@ -1,5 +1,5 @@
 """Calibracion y sensibilidad del ahorro al costo de una visita. Sin datos reales: todo sintetico o
-derivado de reports/predictions.csv, que si esta versionado."""
+derivado de reports/scania/predictions.csv, que si esta versionado."""
 import json
 from pathlib import Path
 
@@ -184,12 +184,15 @@ def test_platt_does_not_change_the_ranking_of_trucks():
 # --------------------------------------------------------- integridad con results.json
 @pytest.fixture(scope="module")
 def committed():
-    results = json.loads((ROOT / "reports" / "results.json").read_text(encoding="utf-8"))["clasificador"]
-    preds = pd.read_csv(ROOT / "reports" / "predictions.csv")
+    full = json.loads((ROOT / "reports" / "scania" / "results.json").read_text(encoding="utf-8"))
+    results = {**full["clasificador"], "_modelos": full["modelos"]}
+    preds = pd.read_csv(ROOT / "reports" / "scania" / "predictions.csv")
     out = {}
     for split in ("validation", "test"):
         d = preds[preds["split"] == split]
         out[split] = (d["class_label"].to_numpy(), d[[f"p{i}" for i in range(5)]].to_numpy())
+        out[split + "_raw"] = (d["class_label"].to_numpy(), d[[f"r{i}" for i in range(5)]].to_numpy())
+        out[split + "_lgb"] = (d["class_label"].to_numpy(), d[[f"l{i}" for i in range(5)]].to_numpy())
     return results, out
 
 
@@ -225,10 +228,13 @@ def test_reported_platt_results_match_a_recomputation(committed, target, source)
         assert mine["ahorro_pct"] == pytest.approx(theirs["ahorro_pct"], abs=0.3)  # predictions.csv guarda 6 decimales
 
 
-def test_raw_probabilities_overstate_the_risk_and_recalibration_fixes_the_average(committed):
-    results, _ = committed
+def test_the_raw_scale_model_overstates_the_risk_and_the_invariant_one_does_not(committed):
+    """El mismo LightGBM, con los mismos hiperparametros: solo cambian las features."""
+    _, data = committed
     for split in ("validation", "test"):
-        raw = results[split]["calibracion_global"]
-        assert raw["riesgo_medio_predicho"] > 2.5 * raw["tasa_observada"]
-        recal = results[split]["recalibrado_con_el_otro_conjunto"]["calibracion_global"]
-        assert recal["riesgo_medio_predicho"] < 1.6 * recal["tasa_observada"]
+        y, raw = data[split + "_raw"]
+        _, inv = data[split + "_lgb"]
+        observed = (y > 0).mean()
+        assert (1 - raw[:, 0]).mean() > 2.5 * observed      # escala cruda: varias veces el riesgo observado
+        assert (1 - inv[:, 0]).mean() < 1.6 * observed      # invariante: cerca de lo observado
+        assert K.break_even(y, inv) > K.break_even(y, raw)  # y el ahorro aguanta visitas mas caras
