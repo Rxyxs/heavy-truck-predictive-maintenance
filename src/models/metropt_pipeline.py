@@ -56,6 +56,10 @@ N_SHIFTS = 500
 PRE_ZONE_H = 24
 POST_ZONE_H = 12
 DETECTORS = ["lps_rule", "duty_zscore", "pca", "isolation_forest", "autoencoder"]
+QUANTILE_GRID = [0.95, 0.98, 0.99, 0.995, 0.998, 0.999, 0.9995]
+EXTRA_SEEDS = [1, 2, 3, 4, 5]  # el autoencoder depende de su inicializacion: se mide con varias semillas
+ZOOM_HOURS = (36, 12)  # ventana de las figuras de cada falla: horas antes del inicio y despues del fin
+ZOOM_COLUMNS = ["DV_eletric_frac", "Reservoirs_min", "Oil_temperature_mean", "Motor_current_mean"]
 
 
 # ------------------------------------------------------------------ variables por ventana
@@ -94,7 +98,7 @@ class AutoEncoder(torch.nn.Module):
         return self.net(x)
 
 
-def score_detector(name: str, fit: pd.DataFrame, frames: dict[str, pd.DataFrame]) -> tuple[dict[str, pd.Series], dict]:
+def score_detector(name: str, fit: pd.DataFrame, frames: dict[str, pd.DataFrame], seed: int = SEED) -> tuple[dict[str, pd.Series], dict]:
     """Ajusta el detector en ``fit`` y devuelve el puntaje (mayor = mas anomalo) de cada marco de ``frames``."""
     info: dict = {}
     if name == "lps_rule":
@@ -121,13 +125,14 @@ def score_detector(name: str, fit: pd.DataFrame, frames: dict[str, pd.DataFrame]
             return -forest.score_samples(z(f))
     elif name == "autoencoder":
         a = z(fit).astype(np.float32)
-        rng = np.random.default_rng(SEED)
+        rng = np.random.default_rng(seed)
         valid = rng.random(len(a)) < 0.15
+        nets.set_seed(seed)  # los pesos iniciales dependen de la semilla, no de lo que corrio antes en el proceso
         model = AutoEncoder(a.shape[1])
         hist = nets.fit_network(model, torch.nn.MSELoss(reduction="none"), a[~valid], a[~valid], None,
                                 a[valid], a[valid], None,
-                                nets.TrainConfig(batch_size=256, seed=SEED,
-                                                 checkpoint_path=PROCESSED / "models" / "metropt_autoencoder.pt"))
+                                nets.TrainConfig(batch_size=256, seed=seed, max_epochs=1000, patience=30,
+                                                 checkpoint_path=PROCESSED / "models" / f"metropt_autoencoder_seed{seed}.pt"))
         info.update(best_epoch=hist.best_epoch, epochs_run=hist.epochs_run)
 
         def score(f):
@@ -213,6 +218,38 @@ def evaluate(alarm: pd.Series, failures: pd.DataFrame) -> dict:
     return out
 
 
+# ------------------------------------------------------------------ analisis
+def operating_curve(calib: pd.Series, evaluation: pd.Series, failures: pd.DataFrame, quantiles=QUANTILE_GRID) -> list[dict]:
+    """Fallas detectadas, nivel de azar y falsas alarmas a medida que se mueve el percentil del umbral."""
+    rows = []
+    for q in quantiles:
+        ev = evaluate(evaluation > float(np.quantile(calib, q)), failures)
+        rows.append({"quantile": q, "detected_2h": ev["detected_2h"], "chance_detected_2h": ev["chance_detected_2h"],
+                     "false_alarms_per_week": ev["false_alarms_per_week"],
+                     "share_of_normal_time_in_alarm": ev["share_of_normal_time_in_alarm"]})
+    return rows
+
+
+def daily_summary(features: pd.DataFrame) -> dict:
+    d = features.resample("1D").agg({"DV_eletric_frac": "mean", "Oil_temperature_mean": "mean", "Reservoirs_min": "min",
+                                     "LPS_frac": "mean"})
+    d["windows"] = features["DV_eletric_frac"].resample("1D").size()
+    d = d[d["windows"] > 0]
+    return {"date": d.index.strftime("%Y-%m-%d").tolist(), **{c: d[c].round(4).tolist() for c in d.columns}}
+
+
+def failure_windows(features: pd.DataFrame, score: pd.Series, failures: pd.DataFrame) -> pd.DataFrame:
+    parts = []
+    for _, f in failures.iterrows():
+        lo, hi = f["start"] - pd.Timedelta(hours=ZOOM_HOURS[0]), f["end"] + pd.Timedelta(hours=ZOOM_HOURS[1])
+        part = features.loc[lo:hi, ZOOM_COLUMNS].copy()
+        part["autoencoder_score_over_threshold"] = score.reindex(part.index)
+        part.insert(0, "failure", int(f["id"]))
+        part["hours_from_start"] = (part.index - f["start"]).total_seconds() / 3600
+        parts.append(part)
+    return pd.concat(parts).reset_index().round(4)
+
+
 # ------------------------------------------------------------------ main
 def run() -> dict:
     M.download()
@@ -249,12 +286,27 @@ def run() -> dict:
                                          "calibration_alarm_share": round(float((calib > threshold).mean()), 4),
                                          **info, **evaluate(alarm, fails)}
             timeline[key] = evaluation / threshold if threshold > 0 else evaluation
+            if det != "lps_rule":
+                results["detectors"][key]["operating_curve"] = operating_curve(calib, evaluation, fails)
             r = results["detectors"][key]
             print(f"[MetroPT] {key:32s} detectadas 2h {r['detected_2h']}/4 (azar {r['chance_detected_2h']})  "
                   f"24h {r['detected_24h']}/4 (azar {r['chance_detected_24h']})  "
                   f"falsas/semana {r['false_alarms_per_week']}  tiempo en alarma {r['share_of_normal_time_in_alarm']:.1%}",
                   flush=True)
+    # Variacion entre semillas del autoencoder (vista absoluta): mismo protocolo, otra inicializacion.
+    frames = {"fit": period(absolute, FIT_PERIOD), "calib": period(absolute, CALIB_PERIOD), "eval": period(absolute, EVAL_PERIOD)}
+    seed_rows = []
+    for seed in [SEED, *EXTRA_SEEDS]:
+        scores, info = score_detector("autoencoder", frames["fit"], frames, seed=seed)
+        calib = smooth(scores["calib"])
+        ev = evaluate(smooth(scores["eval"]) > float(np.quantile(calib, QUANTILE)), fails)
+        seed_rows.append({"seed": seed, "detected_2h": ev["detected_2h"], "chance_detected_2h": ev["chance_detected_2h"],
+                          "false_alarms_per_week": ev["false_alarms_per_week"], "best_epoch": info["best_epoch"]})
+        print(f"[MetroPT] autoencoder semilla {seed}: {seed_rows[-1]}", flush=True)
+    results["autoencoder_seeds"] = seed_rows
+    results["daily"] = daily_summary(absolute)
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    failure_windows(absolute, timeline["autoencoder__absolute"], fails).to_csv(REPORT_DIR / "failure_windows.csv", index=False)
     (REPORT_DIR / "results.json").write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
     pd.DataFrame(timeline).to_parquet(PROCESSED / "metropt_scores.parquet")
     return results

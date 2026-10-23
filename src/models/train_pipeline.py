@@ -49,6 +49,7 @@ SEED = 42
 SPLIT_FRACTIONS = {"early_stop": 0.15, "select": 0.15}
 ENSEMBLE = ["lightgbm", "xgboost", "catboost"]
 N_BOOT = 1000
+SEED_SPREAD = [1, 2, 3, 4, 5]
 LGB_COMMON = dict(
     learning_rate=0.05, num_leaves=31, subsample=0.8, subsample_freq=1, colsample_bytree=0.3,
     min_child_samples=20, random_state=SEED, verbosity=-1, n_jobs=-1,
@@ -451,6 +452,45 @@ def run(force_features: bool = False, models: list[str] | None = None) -> dict:
     selected = min(invariant_keys, key=lambda k: results["modelos"][k]["seleccion"]["costo_por_1000_camiones"])
     results["seleccionado"] = selected
     print(f"[Seleccion] {selected}", flush=True)
+
+    # --- analisis adicionales (para las figuras y el README; no intervienen en la seleccion)
+    from src.models import scania_analysis as SA
+
+    analysis = {"kaplan_meier": SA.kaplan_meier(tte, train_specs)}
+    lead_models = {k: probas[k]["select"] for k in dict.fromkeys([selected, "lightgbm", RAW_SCALE_KEY]) if k in probas}
+    analysis["lead_time"] = SA.lead_time(sel_pdf.assign(event=sel_pdf["time_to_failure"].notna().astype(int)), lead_models)
+    analysis["curves"], analysis["cost_breakdown"], analysis["paired_bootstrap"] = {}, {}, {}
+    for split, frame in eval_frames.items():
+        y_split = frame["class_label"].to_numpy()
+        split_probas = {k: probas[k][split] for k in probas}
+        analysis["curves"][split] = SA.curves(y_split, split_probas)
+        analysis["cost_breakdown"][split] = {k: SA.cost_breakdown(y_split, p) for k, p in split_probas.items()}
+        analysis["cost_breakdown"][split]["siempre_sano"] = SA.cost_breakdown(y_split, np.eye(5)[np.zeros(len(y_split), int)])
+        analysis["paired_bootstrap"][split] = SA.paired_bootstrap(y_split, split_probas, selected)
+    analysis["cut_timing"] = SA.cut_timing(train_rand, {"validation": split_feats["validation"], "test": split_feats["test"]})
+
+    # Variacion entre semillas: el mismo modelo y los mismos datos, otra semilla. Dice cuanto del orden de la
+    # tabla de seleccion es ruido de entrenamiento.
+    spread = {}
+    cols = feature_sets["invariantes"]
+    for name in ("mlp", "xgboost"):
+        if name not in fitted:
+            continue
+        rows = [{"seed": SEED, "seleccion": results["modelos"][name]["seleccion"]["costo_por_1000_camiones"],
+                 **{s: results["modelos"][name][s]["ahorro_pct"] for s in eval_frames}}]
+        for seed in SEED_SPREAD:
+            m = TabularModel(name, 5, categorical=SPEC_COLUMNS, seed=seed)
+            m.fit(clean(fit_pdf, cols), fit_pdf["class_label"], fit_pdf["weight"],
+                  clean(es_pdf, cols), es_pdf["class_label"], es_pdf["weight"])
+            row = {"seed": seed, "seleccion": selection_metrics(sel_y, m.predict_proba(clean(sel_pdf, cols)), sel_w)["costo_por_1000_camiones"]}
+            for split, frame in eval_frames.items():
+                row[split] = round(saving_pct(frame["class_label"].to_numpy(), m.predict_proba(clean(frame, cols))), 2)
+            rows.append(row)
+            print(f"[Semillas] {name} {row}", flush=True)
+        spread[name] = rows
+    analysis["seed_spread"] = spread
+    results["analisis"] = analysis
+    print("[Analisis] listo", flush=True)
 
     # --- detalle del modelo seleccionado (lo que usan la pagina y la API)
     clf_block, by_split = {"modelo": selected}, {}

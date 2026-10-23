@@ -499,6 +499,9 @@ def make_all() -> list[Path]:
         if mp:
             out += [metropt_detectors(mp, lang), metropt_timeline(mp, lang)]
         out.append(overview(sc, aps, cm, mp, lang))
+    from src.models.analysis_figures import make_all_analysis
+
+    out += make_all_analysis()
     return [p for p in out if p is not None]
 
 
