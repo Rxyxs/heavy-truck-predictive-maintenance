@@ -6,14 +6,19 @@
   nunca el de prueba), y se restaura el mejor punto de control (checkpoint), no el ultimo.
 * El mejor estado se guarda en memoria y, si se pide, en disco (``checkpoint_path``).
 
-Si hay GPU (CUDA) se entrena ahi; si no, en CPU. Con la semilla fija las corridas en CPU son deterministicas;
-en GPU pueden variar en los ultimos decimales.
+Si hay GPU (CUDA) se entrena ahi; si no, en CPU. Con la semilla fija y los algoritmos deterministas de PyTorch
+(cuBLAS con espacio de trabajo fijo, cuDNN sin autoajuste), dos corridas en el mismo hardware dan lo mismo. CPU y GPU
+no dan exactamente lo mismo entre si.
 """
 from __future__ import annotations
 
 import copy
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
+
+# Debe fijarse antes de que se inicialice CUDA: sin esto cuBLAS no es determinista en GPU.
+os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
 
 import numpy as np
 import torch
@@ -43,6 +48,10 @@ class TrainHistory:
 def set_seed(seed: int) -> None:
     np.random.seed(seed)
     torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+    torch.use_deterministic_algorithms(True, warn_only=True)
 
 
 def device() -> torch.device:

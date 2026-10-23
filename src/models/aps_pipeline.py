@@ -83,6 +83,52 @@ def summarize(name: str, y_tr, oof, y_te, test, seconds: float | None = None, in
     return out
 
 
+def _downsample(x, y, n: int = 80) -> dict:
+    x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+    idx = np.unique(np.linspace(0, len(x) - 1, min(n, len(x))).round().astype(int))
+    return {"x": np.round(x[idx], 5).tolist(), "y": np.round(y[idx], 4).tolist()}
+
+
+def analysis(X_tr: pd.DataFrame, X_tr_raw: pd.DataFrame, y_tr, y_te, oof: dict, test: dict, selected: str) -> dict:
+    """Curvas costo-umbral del elegido, precision-recall de todos, faltantes y SHAP de un LightGBM de referencia."""
+    from sklearn.metrics import precision_recall_curve
+
+    out: dict = {"threshold_curve": {}, "pr_curves": {}}
+    for name, y, score in (("oof", y_tr, oof[selected]), ("test", y_te, test[selected])):
+        thr, cost = V.cost_curve(y, score, A.COST_FALSE_ALARM, A.COST_MISSED)
+        keep = np.isfinite(thr) & (thr > 0)
+        # Escala por camion para que OOF (60.000) y test (16.000) se puedan comparar.
+        order = np.argsort(thr[keep])
+        out["threshold_curve"][name] = _downsample(thr[keep][order], cost[keep][order] / len(y), n=150)
+    for k, score in test.items():
+        prec, rec, _ = precision_recall_curve(y_te, score)
+        out["pr_curves"][k] = _downsample(rec[::-1], prec[::-1])
+    out["base_rate_test"] = round(float(np.mean(y_te)), 4)
+
+    # Faltantes: tasa de falla por cantidad de valores faltantes en el camion (entrenamiento).
+    n_missing = X_tr_raw.isna().sum(axis=1).to_numpy()
+    edges = [0, 1, 6, 21, 81, 171]
+    labels = ["0", "1-5", "6-20", "21-80", "81+"]
+    groups = pd.cut(n_missing, edges, right=False, labels=labels)
+    rate = pd.Series(y_tr).groupby(groups, observed=False).agg(["mean", "size"])
+    out["missingness"] = {"bins": labels, "failure_rate": rate["mean"].round(4).fillna(0).tolist(), "trucks": rate["size"].astype(int).tolist()}
+
+    # SHAP de un LightGBM de referencia ajustado en todo el entrenamiento (85% ajuste, 15% parada temprana).
+    import shap
+
+    fit_idx, es_idx = train_test_split(np.arange(len(y_tr)), test_size=ES_FRACTION, stratify=y_tr, random_state=SEED)
+    w = class_balanced_weights(y_tr)
+    ref = TabularModel("lightgbm", 2, seed=SEED).fit(X_tr.iloc[fit_idx], y_tr[fit_idx], w[fit_idx], X_tr.iloc[es_idx], y_tr[es_idx], w[es_idx])
+    sample = X_tr.sample(n=3000, random_state=SEED)
+    values = shap.TreeExplainer(ref.model_).shap_values(sample)
+    values = values[1] if isinstance(values, list) else values
+    imp = pd.Series(np.abs(values).mean(axis=0), index=X_tr.columns).sort_values(ascending=False)
+    out["shap_top"] = [{"feature": f, "mean_abs_shap": round(float(v), 4)} for f, v in imp.head(15).items()]
+    family = imp.groupby(lambda c: c.split("_")[0]).sum().sort_values(ascending=False)
+    out["shap_by_variable"] = [{"variable": f, "mean_abs_shap": round(float(v), 4)} for f, v in family.head(10).items()]
+    return out
+
+
 def run(models: list[str] | None = None) -> dict:
     models = models or MODEL_NAMES
     A.download()
@@ -124,6 +170,8 @@ def run(models: list[str] | None = None) -> dict:
 
     selected = min(results["models"], key=lambda m: results["models"][m]["oof"]["cost"])
     results["selected_by_oof"] = selected
+    oof_scores = {k: v for k, v in scores.items() if k != "y_train"}
+    results["analysis"] = analysis(X_tr, X_tr_raw, y_tr, y_te, oof_scores, {k: v for k, v in test_scores.items() if k != "y_test"}, selected)
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     (REPORT_DIR / "results.json").write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
     SCORES_PATH.parent.mkdir(parents=True, exist_ok=True)
