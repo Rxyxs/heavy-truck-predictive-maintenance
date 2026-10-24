@@ -95,3 +95,13 @@ def test_training_is_reproducible_with_the_same_seed():
                          nets.TrainConfig(min_epochs=3, max_epochs=3, batch_size=64, seed=0))
         outs.append(nets.predict(model, X[300:]))
     assert np.allclose(outs[0], outs[1])
+
+
+def test_a_pickled_model_carries_no_local_path(tmp_path):
+    import pickle
+
+    X, y = make_data()
+    model = TabularModel("lightgbm", 2, params=FAST, checkpoint_dir=tmp_path).fit(X[:800], y[:800], None, X[800:1000], y[800:1000], None)
+    blob = pickle.dumps(model)
+    assert b"WindowsPath" not in blob and b"PosixPath" not in blob
+    assert np.allclose(pickle.loads(blob).predict_proba(X[1000:]), model.predict_proba(X[1000:]))

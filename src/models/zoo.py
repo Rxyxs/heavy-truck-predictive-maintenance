@@ -74,6 +74,13 @@ def _as_object(X: pd.DataFrame, categorical: list[str]) -> pd.DataFrame:
 class TabularModel:
     """Envoltorio comun. ``n_classes`` = 2 para binario (devuelve dos columnas), 5 para SCANIA Component X."""
 
+
+    def __getstate__(self):
+        # La carpeta de checkpoints es una ruta local (WindowsPath en Windows) que no se puede reconstruir en otro
+        # sistema operativo; el modelo entrenado no la necesita.
+        state = dict(self.__dict__)
+        state["checkpoint_dir"] = None
+        return state
     def __init__(self, name: str, n_classes: int, categorical: list[str] | None = None, seed: int = SEED,
                  params: dict | None = None, checkpoint_dir: Path | None = None):
         if name not in MODEL_NAMES:
