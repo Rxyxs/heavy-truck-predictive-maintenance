@@ -69,6 +69,13 @@ class _GRUNet(nn.Module):
 class GRUSequenceClassifier:
     name = "gru"
 
+
+    def __getstate__(self):
+        # La carpeta de checkpoints es una ruta local (WindowsPath en Windows) que no se puede reconstruir en otro
+        # sistema operativo; el modelo entrenado no la necesita.
+        state = dict(self.__dict__)
+        state["checkpoint_dir"] = None
+        return state
     def __init__(self, n_classes: int, base_cols: list[str], categorical: list[str], lags: int = LAGS, seed: int = 42,
                  checkpoint_dir: Path | None = None, train_config: nets.TrainConfig | None = None):
         self.n_classes, self.base_cols, self.categorical = n_classes, list(base_cols), list(categorical)
