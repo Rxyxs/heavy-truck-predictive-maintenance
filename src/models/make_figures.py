@@ -45,6 +45,7 @@ T = {
         "visit_title": "Saving as the cost of an unnecessary workshop visit grows",
         "visit_x": "Cost of a visit (multiple of the benchmark's 7–10)", "visit_y": "Saving (%)",
         "scale_inv": "Scale-invariant features", "scale_raw": "Raw-scale features",
+        "iso": "invariant + isotonic calibration (out of sample)",
         "conf_title": "Test set, selected model: confusion matrix (row %, count in brackets)",
         "conf_x": "Recommended class (action)", "conf_y": "True class",
         "shap_title": "What drives the time-to-failure estimate",
@@ -84,6 +85,7 @@ T = {
         "visit_title": "Ahorro a medida que sube el costo de una visita innecesaria al taller",
         "visit_x": "Costo de una visita (múltiplo del 7–10 del reto)", "visit_y": "Ahorro (%)",
         "scale_inv": "Features invariantes a la escala", "scale_raw": "Features en escala cruda",
+        "iso": "invariantes + calibración isotónica (fuera de muestra)",
         "conf_title": "Test, modelo elegido: matriz de confusión (% por fila, conteo entre paréntesis)",
         "conf_x": "Clase recomendada (acción)", "conf_y": "Clase real",
         "shap_title": "Qué mueve la estimación del tiempo hasta la falla",
@@ -175,7 +177,7 @@ def scania_scale(r: dict, lang: str) -> Path:
     return _save(fig, lang, "scania_scale_shift.png")
 
 
-SCANIA_ORDER = ["logistic", "random_forest", "lightgbm", "xgboost", "catboost", "mlp", "ensemble", "lightgbm_escala_cruda"]
+SCANIA_ORDER = ["logistic", "random_forest", "lightgbm", "xgboost", "catboost", "mlp", "gru", "ensemble", "lightgbm_escala_cruda"]
 
 
 def _scania_color(key: str, selected: str) -> str:
@@ -240,6 +242,10 @@ def scania_visit_cost(r: dict, lang: str) -> Path | None:
             ks = [row["k"] for row in rows]
             ax.plot(ks, [row["ahorro_pct"] for row in rows], color=color, linewidth=2, marker="o", markersize=5,
                     markeredgecolor=SURFACE, label=label)
+        iso = r.get("calibracion_isotonica", {}).get(inv, {}).get(split)
+        if iso:
+            ax.plot([row["k"] for row in iso["sensibilidad"]], [row["ahorro_pct"] for row in iso["sensibilidad"]], color=AQUA,
+                    linewidth=2, marker="o", markersize=5, markeredgecolor=SURFACE, label="LightGBM, " + t["iso"])
         ax.axhline(0, color=INK_2, linewidth=1)
         ax.set_xscale("log")
         ax.set_xticks([0.5, 1, 2, 5, 10], ["×0.5", "×1", "×2", "×5", "×10"])

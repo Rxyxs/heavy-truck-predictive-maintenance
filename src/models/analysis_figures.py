@@ -172,7 +172,7 @@ def scania_lead_time(r: dict, lang: str) -> Path:
 
 def _curve_keys(r: dict) -> list[str]:
     sel = r["seleccionado"]
-    return [k for k in dict.fromkeys(["logistic", "random_forest", "lightgbm", "xgboost", "catboost", "mlp", "ensemble",
+    return [k for k in dict.fromkeys(["logistic", "random_forest", "lightgbm", "xgboost", "catboost", "mlp", "gru", "ensemble",
                                       "lightgbm_escala_cruda", sel]) if k in r["analisis"]["curves"]["test"]]
 
 
@@ -207,7 +207,7 @@ def scania_roc_pr(r: dict, lang: str) -> Path:
 def scania_cost_breakdown(r: dict, lang: str) -> Path:
     a, cb = A[lang], r["analisis"]["cost_breakdown"]["test"]
     names, sel = T[lang]["model"], r["seleccionado"]
-    keys = [k for k in ["siempre_sano", "logistic", "random_forest", "lightgbm", "xgboost", "catboost", "mlp", "ensemble",
+    keys = [k for k in ["siempre_sano", "logistic", "random_forest", "lightgbm", "xgboost", "catboost", "mlp", "gru", "ensemble",
                         "lightgbm_escala_cruda"] if k in cb][::-1]
     fig, ax = plt.subplots(figsize=(10, 4.6), facecolor=SURFACE)
     _style(ax)
@@ -258,7 +258,7 @@ def scania_seed_spread(r: dict, lang: str) -> Path | None:
     a, names = A[lang], T[lang]["model"]
     fig, axes = plt.subplots(1, 3, figsize=(11, 3.4), facecolor=SURFACE)
     keys = list(spread)
-    colors = {"mlp": BLUE, "xgboost": ORANGE}
+    colors = {r["seleccionado"]: BLUE, "xgboost": ORANGE} if r["seleccionado"] != "xgboost" else {"xgboost": BLUE}
     for ax, field, label in ((axes[0], "seleccion", a["seed_sel"]), (axes[1], "validation", a["val_saving"]),
                              (axes[2], "test", a["seed_test"])):
         _style(ax)

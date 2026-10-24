@@ -186,3 +186,17 @@ class TabularModel:
         if self.name == "catboost":
             return self.model_.predict_proba(_as_object(X, self.categorical))
         return self.model_.predict_proba(X)
+
+
+class MeanEnsemble:
+    """Promedio simple de probabilidades de varios modelos ya entrenados (semillas de una familia, o familias)."""
+
+    def __init__(self, models: list):
+        self.models = models
+
+    @property
+    def info(self) -> dict:
+        return {"members": len(self.models)}
+
+    def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
+        return np.mean([m.predict_proba(X) for m in self.models], axis=0)

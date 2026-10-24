@@ -117,6 +117,15 @@ def test_unknown_spec_category_does_not_crash(scorer):
 
 
 # ----------------------------------------------------------------- recalibracion en el scorer
+def test_isotonic_calibrator_takes_precedence_and_rows_still_sum_to_one(scorer):
+    halve = {"x": [0.0, 1.0], "y": [0.0, 0.5]}  # isotonica que reduce el riesgo a la mitad
+    cal = RiskScorer(scorer.model, scorer.feature_cols, scorer.spec_categories, scorer.readout_columns,
+                     platt={"a": 1.0, "b": 0.0}, calibrator=halve).score(make_readouts(25, rate=40.0), SPECS)
+    assert cal["recalibrada"] is True
+    assert cal["probabilidad_algun_riesgo"] == pytest.approx(cal["probabilidad_algun_riesgo_cruda"] / 2, abs=1e-6)
+    assert sum(cal["probabilidad_por_clase"].values()) == pytest.approx(1.0, abs=1e-5)
+
+
 def _with_platt(scorer, a=0.17, b=-3.2):
     return RiskScorer(scorer.model, scorer.feature_cols, scorer.spec_categories, scorer.readout_columns, platt={"a": a, "b": b})
 

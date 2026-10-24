@@ -6,29 +6,52 @@
 ![python](https://img.shields.io/badge/python-3.10%20%7C%203.11-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![data](https://img.shields.io/badge/datos-4%20datasets%20p%C3%BAblicos-informational)
+![docker](https://img.shields.io/badge/demo-docker-2496ED)
 
-Dos datasets reales de camiones Scania, el compresor de aire de un tren de metro y el benchmark de turbinas de la NASA. Cada uno es una tarea distinta de mantenimiento predictivo: una decisión de riesgo ponderada por costo, un clasificador de fallas ponderado por costo, vida útil restante y detección de anomalías sin etiquetas. Todos siguen el mismo protocolo: seis familias de modelos por tarea, cada modelo elegido **sin mirar el conjunto de test**, y cada cifra principal con un intervalo bootstrap o un nivel de azar.
+**¿Qué camiones deberían ir al taller, y cuánto se ahorra con eso?** Cuatro datasets públicos de mantenimiento predictivo (dos flotas reales de camiones Scania, el compresor de aire de un tren de metro y el benchmark de turbinas de la NASA), ocho familias de modelos y una regla en todo el repositorio: nada se elige mirando el test, y cada cifra principal lleva un intervalo o un nivel de azar.
+
+**[Página interactiva](https://rxyxs.github.io/heavy-truck-predictive-maintenance/)** · **[Notebook de 5 minutos](notebooks/quickstart.ipynb)** · **[La API en Docker](#pruébalo-en-dos-minutos)** · **[Release del modelo](https://github.com/Rxyxs/heavy-truck-predictive-maintenance/releases)**
 
 ![Resumen de los cuatro datasets](reports/figures/es/overview.png)
 
-**[Página interactiva](https://rxyxs.github.io/heavy-truck-predictive-maintenance/)**: mueve el costo de una visita a taller y mira cómo cambian la decisión de SCANIA y su ahorro, con el modelo anterior y el nuevo.
-
-## Resultados de un vistazo
+## De un vistazo
 
 | Dataset | Tarea | Datos | Modelo elegido sin el test | Resultado en test |
 |---|---|---|---|---|
-| [SCANIA Component X](#1-scania-component-x-decisión-de-riesgo-con-una-matriz-de-costos) | ventana de falla en 5 clases → acción de mantenimiento | reales, 33.641 camiones | MLP con features invariantes a la escala | costo oficial **24,2%** menor (IC95% 13,8–33,8); 37,0% en validación |
+| [SCANIA Component X](#1-scania-component-x-decisión-de-riesgo-con-una-matriz-de-costos) | ventana de falla en 5 clases → acción de mantenimiento | reales, 33.641 camiones | promedio de LightGBM, XGBoost y CatBoost, cada uno promediado sobre 3 semillas | costo oficial **29,1%** menor (IC95% 18,6–37,6); 41,7% en validación |
 | [APS Failure at Scania Trucks](#2-aps-failure-at-scania-trucks-clasificación-ponderada-por-costo) | falla del sistema de aire, sí/no | reales, 76.000 camiones | promedio de LightGBM, XGBoost y CatBoost | costo **9.150** (IC95% 6.620–11.850); ganador del reto: 9.920 |
 | [NASA C-MAPSS](#3-nasa-c-mapss-vida-útil-restante) | vida útil restante | simulados, 1.416 motores | elegido por subconjunto con validación cruzada agrupada (GRU o ensamble) | RMSE **15,4 / 27,4 / 13,7 / 28,9** en FD001–FD004; una constante saca 43–55 |
 | [MetroPT-3](#4-metropt-3-detección-de-anomalías-sin-etiquetas) | detección de fugas de aire, sin etiquetas | reales, 1,5 M lecturas | cinco detectores informados lado a lado | autoencoder: **4 de 4** fugas con las 6 semillas (~2 esperadas por azar), 5,5–13,7 falsas alarmas/semana |
 
-## Lo que encontré
+## Hallazgos principales
 
-1. **Los conjuntos de SCANIA Component X vienen en escalas distintas.** Cada variable anonimizada viene multiplicada por un factor propio (×0,16 a ×3,9), y el factor cambia entre entrenamiento, validación y test. Un clasificador separa lecturas de entrenamiento de las de validación con AUC 1,00. El mismo LightGBM con los mismos hiperparámetros exagera el riesgo entre 2,7 y 6,3 veces con features en escala cruda, y solo 1,5 veces con features que cancelan el factor (4,2% predicho contra 2,7% observado en validación). El costo de visita a taller en que se agota su ahorro sube de ×1,65 a ×4,14 en validación y de ×1,90 a ×2,90 en test. Al costo del propio reto la corrección no sube el ahorro en test (26,2% contra 28,5%). Lo que compra es una política que pierde mucho menos cuando las visitas se encarecen: a ×10, −12% en vez de −138% en validación y −45% en test.
-2. **Una validación sacada del conjunto de entrenamiento no lo puede ver, y tampoco alcanza para elegir un ganador.** En camiones retenidos de entrenamiento, el modelo con escala cruda parece el mejor de todos (5.105 de costo esperado por 1.000 camiones). Solo los conjuntos con otra escala lo dejan en evidencia, y lo encontré con validación adversarial, que usa las features de validación y test pero nunca sus etiquetas. Entre los modelos invariantes, los puntajes en retenidos quedan dentro del ruido de entrenamiento. Reentrenada con cinco semillas más, la MLP saca 5.237–5.380 por 1.000 camiones y XGBoost 5.085–5.277. La MLP se eligió porque su semilla 42 resultó ser su mejor (5.116): la maldición del ganador. En test, XGBoost ahorra 30,6–33,3% con sus seis semillas y la MLP 21,4–26,7%.
-3. **En APS el umbral se transfiere.** El umbral que minimiza el costo se fija con predicciones de entrenamiento fuera de partición. Reajustarlo mirando el test, que no es un resultado válido, bajaría el costo del ensamble solo en 60 (9.150 → 9.090), así que la cifra informada no depende de dónde cayó el umbral.
-4. **El periodo de referencia "sano" de MetroPT-3 no está sano.** El 29 de marzo el compresor trabajó en carga todo el día, la firma de una fuga, sin ninguna falla en el registro del operador. Un detector cuyo umbral de alarma se calibra en ese periodo queda ciego. El z-score del ciclo de trabajo no da ni una alarma en cinco meses, tampoco durante las cuatro fugas reportadas.
-5. **Las redes neuronales ganan con secuencias simples y no con features tabulares.** En los subconjuntos de C-MAPSS con una sola condición, una GRU sobre los últimos 30 ciclos es el mejor modelo (RMSE en test 15,4 y 13,7, contra 17,9–18,8 del mejor árbol). Con seis condiciones de operación queda detrás de los árboles (29,7 y 30,7 contra 27,6 y 28,7), y la CNN 1D es ahí el peor modelo en validación cruzada. En los dos problemas tabulares de Scania, la MLP alcanza su mejor pérdida de validación entre las épocas 3 y 8, y en test queda detrás del mejor boosting en ambos. Todas las redes corrieron al menos 100 épocas restaurando el mejor checkpoint, así que no es falta de entrenamiento.
+1. **Los conjuntos de SCANIA Component X vienen en escalas distintas.** Cada variable anonimizada viene multiplicada por un factor propio (×0,16 a ×3,9) que cambia entre entrenamiento, validación y test; un clasificador distingue los conjuntos con AUC 1,00. Con features que cancelan el factor, el mismo LightGBM predice 4,2% de riesgo medio en vez de 16,9% (2,7% observado), y su ahorro aguanta visitas a taller de hasta ×4,14 (validación) y ×3,12 (test) el costo del reto, en vez de ×1,65 y ×1,90. [Detalle](#el-cambio-de-escala-oculto)
+2. **Una semilla por modelo elige la inicialización más afortunada.** Reentrenado con tres semillas, el puntaje en retenidos de cada familia se mueve hasta 185 por 1.000 camiones, más que la distancia entre los mejores modelos. Promediar cada familia sobre sus semillas estabiliza la selección y mejora los modelos mismos: el costo en retenidos de LightGBM pasa de 5.382–5.419 por semilla a 5.208 promediado. [Detalle](#cuánto-del-orden-es-ruido)
+3. **En APS el umbral se transfiere.** Se fija con predicciones de entrenamiento fuera de partición; reajustarlo mirando el test (no válido) bajaría el costo solo en 60. [Detalle](#2-aps-failure-at-scania-trucks-clasificación-ponderada-por-costo)
+4. **La referencia "sana" de MetroPT-3 no está sana, y su autoencoder depende de la semilla.** El 29 de marzo el compresor trabajó en carga todo el día sin ninguna falla en el registro, lo que deja ciego a un detector del ciclo de trabajo. El autoencoder detecta las cuatro fugas con todas las semillas, pero sus falsas alarmas van de 5,5 a 13,7 por semana. [Detalle](#4-metropt-3-detección-de-anomalías-sin-etiquetas)
+5. **Los modelos de secuencia ganan con secuencias simples, no con flotas ruidosas.** Una GRU es el mejor modelo en los subconjuntos de C-MAPSS con una condición (RMSE 15,4 y 13,7), pero sobre los historiales de lecturas de SCANIA ahorra 21,1% en test contra 29,1% del ensamble de boosting, y la MLP queda detrás del boosting en los dos problemas tabulares.
+
+## Pruébalo en dos minutos
+
+El modelo entrenado de SCANIA está publicado como archivo del release, así que la API corre sin descargar datos ni entrenar nada:
+
+```bash
+docker build -t truck-risk .
+docker run -p 8000:8000 -e RISK_API_KEY=change-me truck-risk
+curl -s -X POST localhost:8000/score -H "X-API-Key: change-me" -H "Content-Type: application/json" \
+     --data @examples/truck_189_class4.json
+```
+
+O sin Docker: `pip install -r requirements.txt`, luego `python -m src.demo fetch-model` y `python -m src.demo score`. Los cuatro camiones de ejemplo son camiones reales de validación, elegidos para mostrar los dos lados del modelo:
+
+| Ejemplo | Qué pasó de verdad | Lecturas | Riesgo predicho | Recomendación |
+|---|---|---:|---:|---|
+| `truck_10_class0.json` | sin reparación en 48 unidades | 102 | 1,3% | sin acción (clase 0) |
+| `truck_1285_class3.json` | reparado 6–12 unidades después | 109 | 6,1% | sacar de operación ahora (clase 4) |
+| `truck_189_class4.json` | reparado antes de 6 unidades | 61 | 4,1% | revisión urgente (clase 3) |
+| `truck_3309_class4.json` | reparado antes de 6 unidades | 32 | 1,1% | sin acción (clase 0) |
+
+Con los costos del reto el modelo deja pasar cerca de cuatro de cada diez camiones que fallan, y el 3309 es uno de ellos.
 
 ## Arquitectura
 
@@ -41,14 +64,14 @@ flowchart LR
         MP["MetroPT-3<br/>1,5 M lecturas"]
     end
     SC --> ADV["Diagnóstico de escala<br/>validación adversarial"] --> INV["Features invariantes<br/>a la escala"]
-    INV --> ZOO["Catálogo tabular<br/>LR · RF · LightGBM · XGBoost<br/>CatBoost · MLP · ensamble"]
+    INV --> ZOO["Catálogo de modelos, 3 semillas c/u<br/>LR · RF · LightGBM · XGBoost<br/>CatBoost · MLP · GRU · ensamble"]
     AP --> ZOO
     CM --> RUL["Modelos de RUL<br/>Ridge · RF · LightGBM · XGBoost<br/>CNN 1D · GRU · ensamble"]
     MP --> WIN["Ventanas de 10 minutos"] --> DET["Detectores<br/>regla · z-score · PCA<br/>isolation forest · autoencoder"]
     ZOO --> SEL["Selección sin test<br/>costo retenido / fuera de partición"]
     RUL --> CV["Validación cruzada por motor"]
     DET --> EVT["Evaluación por eventos<br/>vs. nivel de azar"]
-    SEL --> DEC["Decisión de costo<br/>esperado mínimo"] --> API["FastAPI /score"]
+    SEL --> CAL["Calibración isotónica<br/>fuera de muestra"] --> DEC["Decisión de costo<br/>esperado mínimo"] --> API["FastAPI /score · Docker"]
     SEL & CV & EVT --> REP["reports/*.json · figuras (EN/ES)<br/>GitHub Pages"]
 ```
 
@@ -57,7 +80,8 @@ flowchart LR
 - **Nada se elige con el test.** SCANIA elige con camiones retenidos del entrenamiento, APS con predicciones de entrenamiento fuera de partición, C-MAPSS con validación cruzada agrupada por motor. MetroPT-3 no tiene etiquetas con qué elegir, así que se informan los cinco detectores. El test se mira una vez, con todos los modelos.
 - **Parada temprana en un conjunto aparte.** El boosting y las redes paran con datos que no son ni la partición evaluada ni el test.
 - **Redes neuronales** (PyTorch): mínimo 100 épocas, después parada temprana por paciencia, y se restaura y guarda el mejor checkpoint (`src/models/nets.py`). Usan la GPU si hay una.
-- **Incertidumbre.** Intervalos bootstrap por camión para costos y ahorros, y bootstrap pareado entre modelos. En MetroPT-3, un nivel de azar: la misma serie de alarmas desplazada en el tiempo 500 veces. Las redes que definen un resultado (la MLP de SCANIA, el autoencoder de MetroPT) además se reentrenan con varias semillas.
+- **Semillas.** Cada familia de SCANIA se entrena con tres semillas y se elige con sus probabilidades promediadas; el autoencoder de MetroPT se informa sobre seis semillas.
+- **Incertidumbre.** Intervalos bootstrap por camión para costos y ahorros, y bootstrap pareado entre modelos. En MetroPT-3, un nivel de azar: la misma serie de alarmas desplazada en el tiempo 500 veces.
 - **Hiperparámetros fijados de antemano**, iguales en todos los datasets salvo que se diga. Nada se ajusta con validación ni test.
 
 ---
@@ -98,74 +122,80 @@ Las tasas heredan el factor. Las fracciones de histograma y el cociente entre el
 
 El dataset describe la lectura de validación y test como "elegida al azar entre todas las lecturas" de cada camión. No es uniforme. Una lectura de entrenamiento al azar cae antes del tiempo 60 en el 26,5% de los camiones, pero las de validación y test solo en el 0,9%, y su mediana está en 169–172 unidades de tiempo contra 109. El modelo entrena con lecturas del inicio de la vida con las que nunca se lo evalúa. Los pesos de selección (1 / lecturas del camión) suponen el protocolo documentado, así que tampoco lo corrigen.
 
-### Siete clasificadores, elegidos con camiones retenidos del entrenamiento
+### Ocho clasificadores, elegidos con camiones retenidos del entrenamiento
 
-El entrenamiento usa todas las lecturas con riesgo y el 5% de las sanas (re-ponderadas ×20), separadas por camión en 70% ajuste, 15% parada temprana y 15% selección. El puntaje de selección es el costo oficial esperado en los camiones de selección, con cada lectura ponderada por 1 / (lecturas de su camión), que es exactamente el protocolo de una lectura al azar de validación y test.
+El entrenamiento usa todas las lecturas con riesgo y el 5% de las sanas (re-ponderadas ×20), separadas por camión en 70% ajuste, 15% parada temprana y 15% selección. El puntaje de selección es el costo oficial esperado en los camiones de selección, con cada lectura ponderada por 1 / (lecturas de su camión), el protocolo de una lectura al azar de validación y test. **Cada familia se entrena con tres semillas y se promedian sus probabilidades** (la regresión logística no tiene aleatoriedad y corre una vez). La GRU lee las últimas 8 lecturas de cada camión con las 48 features invariantes de mayor ganancia en LightGBM.
 
-| Modelo | Costo retenidos / 1.000 camiones | Ahorro validación (IC95%) | Ahorro test (IC95%) | Riesgo medio predicho (val. / test) | El ahorro se agota en (val. / test) |
+| Modelo (probabilidades promediadas sobre sus semillas) | Costo retenidos / 1.000 camiones | Ahorro validación (IC95%) | Ahorro test (IC95%) | Riesgo medio predicho (val. / test) | El ahorro se agota en (val. / test) |
 |---|---:|---:|---:|---:|---:|
-| Regresión logística | 5.254 | 31,8% (22,2–40,8) | 21,6% (11,3–30,5) | 3,5% / 3,4% | ×4,14 / ×2,35 |
-| Bosque aleatorio | 7.756 | 21,0% (5,8–32,4) | 18,2% (3,7–30,1) | 17,3% / 17,1% | ×1,29 / ×1,24 |
-| LightGBM | 5.385 | 31,4% (22,6–40,5) | 26,2% (16,6–34,7) | 4,2% / 4,1% | ×4,14 / ×2,90 |
-| XGBoost (elegido en una corrida en CPU) | 5.131 | 41,5% (32,5–50,5) | 30,6% (19,7–39,5) | 3,6% / 3,6% | ×6,78 / ×4,60 |
-| CatBoost | 5.296 | 37,6% (27,8–46,1) | 28,1% (17,2–36,7) | 3,2% / 3,2% | ×7,81 / ×3,12 |
-| **MLP, PyTorch (elegido)** | **5.116** | **37,0% (26,9–46,0)** | **24,2% (13,8–33,8)** | **3,5% / 3,4%** | **×5,68 / ×2,04** |
-| Ensamble (promedio de los 3 GBM) | 5.132 | 37,9% (28,8–46,4) | 28,9% (18,1–38,0) | 3,7% / 3,6% | ×6,10 / ×3,47 |
-| *LightGBM con features en escala cruda (versión anterior)* | *5.105* | *28,7% (16,6–37,9)* | *28,5% (18,0–37,3)* | *16,9% / 7,7%* | *×1,65 / ×1,90* |
+| Regresión logística (1 semilla, determinista) | 5.254 | 31,8% (22,2–40,8) | 21,6% (11,3–30,5) | 3,5% / 3,4% | ×4,14 / ×2,35 |
+| Bosque aleatorio | 7.758 | 21,4% (5,7–32,6) | 18,8% (4,1–30,5) | 17,3% / 17,1% | ×1,29 / ×1,20 |
+| LightGBM | 5.208 | 37,6% (28,3–46,1) | 30,1% (19,2–38,6) | 4,2% / 4,2% | ×4,14 / ×3,12 |
+| XGBoost | 5.089 | 41,8% (32,7–50,1) | 32,7% (22,0–41,5) | 3,6% / 3,6% | ×10,73 / ×4,60 |
+| CatBoost | 5.348 | 40,2% (30,3–48,3) | 26,2% (15,7–35,1) | 3,1% / 3,1% | ×7,81 / ×3,59 |
+| MLP (PyTorch) | 5.127 | 36,9% (26,4–46,1) | 25,8% (15,5–35,5) | 3,7% / 3,7% | ×10,00 / ×2,61 |
+| GRU sobre las últimas 8 lecturas (PyTorch) | 5.432 | 34,8% (24,4–44,0) | 21,1% (10,7–30,6) | 3,1% / 3,1% | ×3,59 / ×2,90 |
+| **Ensamble de las 3 familias de boosting (elegido)** | **5.019** | **41,7% (32,4–50,3)** | **29,1% (18,6–37,6)** | **3,7% / 3,6%** | **×6,32 / ×3,99** |
+| *LightGBM con features en escala cruda (versión anterior, 1 semilla) | 5.105 | 28,7% (16,6–37,9) | 28,5% (18,0–37,3) | 16,9% / 7,7% | ×1,65 / ×1,90* |
 
 Tasa de falla observada: 2,7% en validación y 2,8% en test. "El ahorro se agota en" es el costo de una visita innecesaria, como múltiplo del 7–10 del reto, sobre el cual el ahorro cae bajo 1%.
 
 ![Ahorro por modelo](reports/figures/es/scania_models.png)
 
-- **La elección es una moneda al aire entre los tres mejores.** En camiones retenidos, la MLP, XGBoost y el ensamble quedan a 16 puntos por 1.000 camiones, y la sección siguiente muestra que eso es menos de lo que se mueve cualquiera de los dos modelos entre semillas. Informo la elección tal como la hizo la regla fijada, en vez de repetir hasta que se viera mejor en test. En validación y test los intervalos de los buenos modelos se solapan: con 136 y 142 camiones que fallan no se distinguen con confianza.
-- **El bosque aleatorio está mal calibrado** (17% de riesgo predicho). Sus hojas promedian las filas re-ponderadas del entrenamiento, y una hoja hecha solo de filas con riesgo predice 100% de riesgo. Es el peor modelo aquí por eso, no por falta de capacidad de ordenar (AUC 0,72 en validación).
-- **El ahorro en test del modelo con escala cruda se ve bien** (28,5%), y así se escondió el problema en la versión anterior de este repositorio. Sus probabilidades no son creíbles, y la figura siguiente muestra lo que eso cuesta, comparándolo con el mismo LightGBM con features invariantes.
+- **El ensamble de boosting se elige en los camiones retenidos (5.019 por 1.000), y XGBoost solo es el mejor modelo en test.** El bootstrap pareado de abajo pone a XGBoost delante del ensamble elegido en el 99,6% de las réplicas de test (+3,7 puntos, intervalo 95% +0,7 a +7,1), pero empatan en validación (+0,1 puntos, 52%). Con 136 y 142 camiones que fallan, los intervalos de los buenos modelos se solapan.
+- **Leer la trayectoria no ayuda.** La GRU sobre las últimas 8 lecturas ahorra 21,1% en test, bajo todos los modelos de boosting: las features de ritmo reciente ya resumen lo que agrega la historia, y la red se sobreajusta en 4–5 épocas.
+- **El bosque aleatorio está mal calibrado** (17% de riesgo predicho). Sus hojas promedian las filas re-ponderadas del entrenamiento, así que una hoja hecha solo de filas con riesgo predice 100%. Ordena razonablemente (AUC 0,64 en test); el problema son sus probabilidades.
+- **El ahorro en test del modelo con escala cruda se ve bien** (28,5%), y así se escondió el problema de escala en la versión anterior de este repositorio. Sus probabilidades no son creíbles, y la sección de robustez muestra lo que eso cuesta.
 
 ### Cuánto del orden es ruido
 
 ![Mismo modelo, otra semilla](reports/figures/es/scania_seed_spread.png)
 
-La MLP y XGBoost reentrenados con cinco semillas más cada uno, mismas filas y mismas features:
+| Familia | Costo retenidos, semillas 42 / 1 / 2 | Promedio de semillas | Ahorro test, semillas 42 / 1 / 2 | Promedio |
+|---|---:|---:|---:|---:|
+| LightGBM | 5.385 / 5.382 / 5.419 | **5.208** | 26,2% / 27,5% / 27,3% | 30,1% |
+| XGBoost | 5.131 / 5.263 / 5.173 | **5.089** | 30,6% / 31,7% / 32,8% | 32,7% |
+| CatBoost | 5.296 / 5.322 / 5.481 | **5.348** | 28,1% / 24,4% / 24,7% | 26,2% |
+| MLP | 5.116 / 5.271 / 5.237 | **5.127** | 24,2% / 21,5% / 26,7% | 25,8% |
+| GRU | 5.512 / 5.406 / 5.497 | **5.432** | 22,1% / 21,4% / 20,4% | 21,1% |
+| Bosque aleatorio | 7.756 / 7.762 / 7.726 | **7.758** | 18,2% / 19,1% / 17,4% | 18,8% |
 
-| | Costo retenidos / 1.000 camiones | Ahorro en validación | Ahorro en test |
-|---|---:|---:|---:|
-| XGBoost, 6 semillas | 5.085–5.277 (media 5.184) | 37,3–44,0% | 30,6–33,3% |
-| MLP, 6 semillas | 5.116–5.380 (media 5.280) | 33,7–38,4% | 21,4–26,7% |
-
-La semilla 42 es la mejor de las seis de la MLP en camiones retenidos, y por eso la regla la eligió: con una semilla por modelo, la selección premia al modelo que sacó la inicialización más afortunada. Promediando semillas, el mismo puntaje en retenidos habría elegido XGBoost, que además es el modelo más estable en test. No cambié la elección informada, porque esa decisión se tomaría después de ver el test; para un despliegue elegiría desde el inicio con la media sobre semillas.
+La primera versión de este pipeline entrenaba cada familia una vez, con la semilla 42. Eso eligió la MLP, porque la semilla 42 fue su mejor resultado (5.116, contra 5.237–5.271 con las otras), y en test la MLP ahorraba menos que cualquier modelo de boosting. Promediar semillas saca esa suerte de la selección, y los modelos promediados son mejores que su semilla típica: LightGBM pasa de 5.382–5.419 por semilla a 5.208. Este es el protocolo v2; lo adopté después del análisis por semillas, que usa camiones retenidos y no el test, e informo todas las familias con él.
 
 ![Bootstrap pareado contra el modelo elegido](reports/figures/es/scania_paired_bootstrap.png)
 
-El bootstrap pareado remuestrea los mismos camiones para todos los modelos, lo que quita el ruido que comparten. En test, XGBoost le gana a la MLP elegida en el 97% de las réplicas (+6,5 puntos, intervalo 95% −0,6 a +13,6) y el ensamble en el 92%. En validación los márgenes son menores (XGBoost +4,6 puntos, 89%).
+El bootstrap pareado remuestrea los mismos camiones para todos los modelos, lo que quita el ruido que comparten. En test, XGBoost le gana al ensamble elegido en el 99,6% de las réplicas y LightGBM en el 67%; CatBoost, la MLP y el modelo con escala cruda no (12–42%). En validación solo XGBoost lo empata (52%).
 
 ### Robustez frente al supuesto de costos
 
 ![Ahorro a medida que sube el costo de la visita](reports/figures/es/scania_visit_cost.png)
 
-Con probabilidades creíbles, la política de costo esperado mínimo nunca debería quedar peor que no hacer nada. Simplemente debería alarmar menos a medida que las visitas se encarecen. Mismo modelo, mismos hiperparámetros, solo cambian las features. Con features en escala cruda, LightGBM pierde plata en cuanto una visita cuesta unas dos veces lo del reto, y llega a −138% (validación) y −45% (test) a ×10. Con features invariantes se mantiene sobre cero hasta ×3 y termina en −12% a ×10, porque todavía exagera el riesgo en sus tramos altos. A ×1 en test el modelo con escala cruda ahorra algo más (28,5% contra 26,2%), así que la corrección compra robustez frente al supuesto de costos, no un mejor puntaje con la matriz del propio reto.
+Con probabilidades creíbles, la política de costo esperado mínimo nunca debería quedar peor que no hacer nada; simplemente debería alarmar menos a medida que las visitas se encarecen. Mismo modelo y mismos hiperparámetros, solo cambian las features: con features en escala cruda LightGBM pierde plata en cuanto una visita cuesta unas dos veces lo del reto y llega a −138% (validación) y −45% (test) a ×10. Con features invariantes se mantiene sobre cero hasta ×3 y termina en −10% y −14%. A ×1 el modelo invariante ahora también ahorra más en test (30,1% contra 28,5%), pero la ganancia principal es la robustez frente al supuesto de costos.
+
+**Calibrar fuera de muestra ayuda un poco más.** Una regresión isotónica ajustada en los camiones de selección (retenidos del entrenamiento, nunca validación ni test) sube el ahorro del ensamble elegido de 41,7% a 44,1% en validación y de 29,1% a 30,9% en test, y lo mantiene cerca de cero a ×10 en vez de negativo. La API sirve estas probabilidades calibradas.
 
 ### De dónde sale el costo, y con cuánta anticipación se ve una falla
 
 ![Desglose del costo en test](reports/figures/es/scania_cost_breakdown.png)
 
-No hacer nada cuesta 56.100 en test, todo en fallas no detectadas. Cada modelo invariante salvo el bosque aleatorio elimina más o menos la mitad de eso y agrega 12.000–15.000 en falsas alarmas, y las fallas no detectadas siguen siendo la mayor parte de lo que queda (23.500 de 38.955 en XGBoost). El modelo con escala cruda llega a un total parecido por otro camino: alarma más (21.207 en falsas alarmas) y deja pasar menos (14.200), el comportamiento de un modelo que exagera el riesgo. El bosque aleatorio alarma a casi todos (43.703 en falsas alarmas).
+No hacer nada cuesta 56.100 en test, todo en fallas no detectadas. El ensamble elegido elimina más de la mitad de eso y agrega 14.430 en falsas alarmas; las fallas no detectadas siguen siendo la mayor parte de lo que queda (23.800 de 39.773). El modelo con escala cruda llega a un total parecido al revés, alarmando más (21.207) y dejando pasar menos (14.200), como hace un modelo que exagera el riesgo. El bosque aleatorio alarma a casi todos (43.940 en falsas alarmas).
 
 ![Riesgo según el tiempo que falta para la reparación](reports/figures/es/scania_lead_time.png)
 
-En todas las lecturas de los camiones retenidos del entrenamiento, la fracción que recibe alarma sube de forma sostenida a medida que se acerca la reparación. Con la MLP elegida es 13% a más de 192 unidades, 48% a 48–96 unidades y 73% en las últimas 6, contra 22% en camiones que nunca se reparan. La señal es una deriva lenta que empieza 100–200 unidades de tiempo antes de la reparación, mucho antes de la ventana de 48 unidades que puntúa el reto. Por eso el modelo no distingue las ventanas y recomienda casi siempre la clase 4.
+En todas las lecturas de los camiones retenidos del entrenamiento, la fracción que recibe alarma sube de forma sostenida a medida que se acerca la reparación. Con el ensamble elegido es 6% a más de 192 unidades, 24% a 96–192, 44% a 48–96 y 73% en las últimas 6, contra 20% en camiones que nunca se reparan. La señal es una deriva lenta que empieza 100–200 unidades de tiempo antes de la reparación, mucho antes de la ventana de 48 unidades que puntúa el reto, y por eso el modelo no distingue las ventanas y recomienda casi siempre la clase 4.
 
 ![ROC y precisión-recall en test](reports/figures/es/scania_roc_pr.png)
 
-La capacidad de ordenar es modesta y parecida entre modelos: AUC ROC de "algún riesgo" 0,70–0,71 en test para XGBoost, LightGBM, el ensamble y el modelo con escala cruda, y 0,65 para la MLP elegida. La precisión promedio es 0,05–0,07 contra una tasa base de 0,028.
+La capacidad de ordenar es modesta y parecida entre los modelos de boosting: AUC ROC de "algún riesgo" 0,70–0,71 en test para XGBoost, LightGBM, el ensamble y el modelo con escala cruda, 0,66 para la MLP y 0,65 para la GRU. La precisión promedio es 0,05–0,08 contra una tasa base de 0,028.
 
 ![Supervivencia de Kaplan-Meier](reports/figures/es/scania_survival.png)
 
-Durante el estudio, el 9,6% de los camiones de entrenamiento tuvo una reparación del componente X. De las ocho especificaciones anonimizadas, `Spec_7` es la que más separa la supervivencia (log-rank χ² 425, p < 10⁻⁸⁰). Su categoría Cat1 tiene 14,1% de reparaciones contra 7,0% de Cat4. `Spec_5` no la separa en absoluto (p = 0,36). `Spec_7` es además la segunda variable más importante del modelo de tiempo hasta la falla.
+Durante el estudio, el 9,6% de los camiones de entrenamiento tuvo una reparación del componente X. De las ocho especificaciones anonimizadas, `Spec_7` es la que más separa la supervivencia (log-rank χ² 425, p < 10⁻⁸⁰). Su categoría Cat1 tiene 14,1% de reparaciones contra 7,0% de Cat4, mientras que `Spec_5` no la separa en absoluto (p = 0,36). `Spec_7` es además la segunda variable más importante del modelo de tiempo hasta la falla.
 
 <details>
-<summary>Cómo se ve la decisión, tiempo hasta la falla, supervivencia y SHAP</summary>
+<summary>Cómo se ve la decisión, tiempo hasta la falla, modelos de supervivencia y SHAP</summary>
 
-**Decisión (MLP elegida, costo esperado mínimo).** Alarma a 85 de 136 camiones que fallan en validación (62%) y a 74 de 142 en test (52%), y al 31% y 30% de los camiones sanos. Más del 99% de sus alarmas son clase 4, así que en la práctica es un interruptor "alarma / sin alarma" y no distingue las ventanas intermedias. AUC ROC de "algún riesgo": 0,722 en validación y 0,654 en test (XGBoost: 0,744 y 0,706). Pendiente de Platt de su riesgo: 0,66 ajustada en validación y 0,43 en test, donde 1 sería una calibración perfecta.
+**Decisión (ensamble elegido, costo esperado mínimo).** Alarma a 96 de 136 camiones que fallan en validación (71%) y a 82 de 142 en test (58%), y al 31% y 30% de los camiones sanos. Cerca del 87% de sus alarmas son clase 4, así que en la práctica es un interruptor "alarma / sin alarma" y no distingue las ventanas intermedias. AUC ROC de "algún riesgo": 0,745 en validación y 0,705 en test.
 
 ![Matriz de confusión en test](reports/figures/es/scania_confusion.png)
 
@@ -339,7 +369,7 @@ python -m src.cli all         # scania, aps, cmapss, metropt, figures, site
 pytest                        # pruebas con datos sintéticos; las que necesitan un dataset se omiten si falta
 ```
 
-Tiempos en una CPU de 16 núcleos con una RTX 4060 Ti: SCANIA ~45 min (CatBoost ~10, el análisis por semillas ~12), APS ~12 min, C-MAPSS ~1,5 h (cuDNN determinista es más lento), MetroPT-3 ~10 min (seis semillas del autoencoder). Cada paso corre por separado: `python -m src.cli scania`, etc.
+Tiempos en una CPU de 16 núcleos con una RTX 4060 Ti: SCANIA ~1 h (7 familias × 3 semillas; CatBoost toma ~30 min), APS ~12 min, C-MAPSS ~1,5 h (cuDNN determinista es más lento), MetroPT-3 ~10 min (seis semillas del autoencoder). Cada paso corre por separado: `python -m src.cli scania`, etc.
 
 Salidas: `reports/<dataset>/results.json`, figuras en `reports/figures/{en,es}/` y la página en `docs/`. Los modelos y checkpoints van a `data/processed/models/`, que no se versiona.
 
@@ -352,7 +382,7 @@ export RISK_API_KEY=change-me
 uvicorn src.api.main:app
 ```
 
-El modelo es el clasificador SCANIA elegido, con features invariantes a la escala. Sus probabilidades se recalibran con un Platt único ajustado en validación y test juntos, para servirlas y no para informar desempeño. `probabilidad_algun_riesgo_cruda` entrega el valor crudo.
+El modelo es el clasificador SCANIA elegido, con features invariantes a la escala (`python -m src.demo fetch-model` lo descarga del release; `python -m src.cli scania` lo reentrena). Sus probabilidades pasan por la calibración isotónica ajustada en camiones retenidos del entrenamiento, la que se evalúa arriba; `probabilidad_algun_riesgo_cruda` entrega el valor sin calibrar. El `Dockerfile` arma una imagen autocontenida de este servicio.
 
 ## Estructura
 
@@ -368,6 +398,7 @@ src/models/aps_pipeline.py      APS: catálogo de modelos con validación cruzad
 src/models/rul_estimator.py     modelos de C-MAPSS (tabulares y de secuencia)
 src/models/rul_benchmark.py     benchmark C-MAPSS FD001-FD004
 src/models/metropt_pipeline.py  MetroPT-3: ventanas, detectores, evaluación por eventos, nivel de azar
+src/models/sequence_scania.py   SCANIA: GRU sobre el historial de lecturas de cada camión
 src/models/scania_analysis.py   SCANIA: supervivencia, anticipación, curvas, desglose del costo, bootstrap pareado
 src/models/make_figures.py      figuras de resultados, en inglés y español
 src/models/analysis_figures.py  figuras de análisis (exploración, diagnóstico, robustez), en inglés y español
@@ -375,6 +406,10 @@ src/models/cost_decision.py     decisión de costo esperado mínimo con la matri
 src/models/calibration.py       tablas de calibración, Platt, sensibilidad al costo de la visita
 src/site.py                     genera la página de GitHub Pages (docs/, generada)
 src/api/main.py                 servicio FastAPI
+src/demo.py                     modelo publicado, camiones de ejemplo, puntuación sin entrenar
+examples/                       cuatro camiones reales de validación como cuerpos de /score
+notebooks/quickstart.ipynb      recorrido de cinco minutos (lo genera notebooks/build_quickstart.py)
+Dockerfile                      la API con el modelo publicado
 tests/                          pruebas unitarias con datos sintéticos y chequeos de consistencia de los resultados
 ```
 
@@ -384,7 +419,7 @@ Una versión anterior de este repositorio corría sobre un generador de datos si
 
 Código: MIT. Los datos no se redistribuyen aquí (cada cargador los descarga desde la fuente):
 
-- SCANIA Component X: © Scania CV AB, CC BY 4.0. Lindgren et al., *SCANIA Component X dataset: a real-world multivariate time series dataset for predictive maintenance*, [arXiv:2401.15199](https://arxiv.org/abs/2401.15199).
+- SCANIA Component X: © Scania CV AB, CC BY 4.0 (los cuatro camiones de `examples/` vienen de su conjunto de validación). Lindgren et al., *SCANIA Component X dataset: a real-world multivariate time series dataset for predictive maintenance*, [arXiv:2401.15199](https://arxiv.org/abs/2401.15199).
 - APS Failure at Scania Trucks: © Scania CV AB, GNU GPL v3, UCI Machine Learning Repository.
 - NASA C-MAPSS: Saxena et al., *Damage propagation modeling for aircraft engine run-to-failure simulation*, PHM 2008. NASA Prognostics Center of Excellence.
 - MetroPT-3: Veloso et al., *The MetroPT dataset for predictive maintenance*, Scientific Data 9, 764 (2022). CC BY 4.0, UCI Machine Learning Repository.
