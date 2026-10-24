@@ -28,10 +28,12 @@ PREDICTIONS_CSV = REPORTS / "scania" / "predictions.csv"
 FIGURES_DIR = REPORTS / "figures"
 DOCS_DIR = ROOT / "docs"
 LANGS = ("en", "es")
-FIGURES_USED = ["overview.png", "scania_scale_shift.png", "scania_models.png", "scania_confusion.png", "scania_shap.png"]
+FIGURES_USED = ["overview.png", "scania_scale_shift.png", "scania_models.png", "scania_confusion.png", "scania_shap.png",
+                "scania_lead_time.png", "scania_seed_spread.png", "aps_models.png", "aps_threshold.png", "aps_missingness.png",
+                "cmapss_models.png", "cmapss_error_by_rul.png", "metropt_failures.png", "metropt_operating.png"]
 PROB_SCALE = 1_000_000  # las probabilidades viajan como enteros: son mas cortas que los decimales
 SPLITS = ("validation", "test")
-MODEL_ORDER = ["logistic", "random_forest", "lightgbm", "xgboost", "catboost", "mlp", "ensemble", "lightgbm_escala_cruda"]
+MODEL_ORDER = ["logistic", "random_forest", "lightgbm", "xgboost", "catboost", "mlp", "gru", "ensemble", "lightgbm_escala_cruda"]
 
 
 def _calibration_rows(rows: list[dict]) -> list[dict]:
@@ -51,19 +53,30 @@ def _other_datasets() -> dict:
         sel = r["selected_by_oof"]
         out["aps"] = {"model": sel, "cost": r["models"][sel]["test"]["cost"], "ci": r["models"][sel]["test"]["cost_ci95"],
                       "winner": r["ida2016_podium"][0]["cost"], "nothing": r["baselines"]["no_alarms"],
-                      "trucks": r["data"]["train_trucks"] + r["data"]["test_trucks"]}
+                      "trucks": r["data"]["train_trucks"] + r["data"]["test_trucks"],
+                      "tuned": r["models"][sel]["not_valid_threshold_tuned_on_test"]["cost"],
+                      "missing": r.get("analysis", {}).get("missingness"),
+                      "models": [{"key": k, "oof": m["oof"]["cost"], "cost": m["test"]["cost"], "ci": m["test"]["cost_ci95"],
+                                  "fa": m["test"]["false_alarms"], "missed": m["test"]["missed"]} for k, m in r["models"].items()]}
     path = REPORTS / "cmapss" / "results.json"
     if path.exists():
         r = json.loads(path.read_text(encoding="utf-8"))
         out["cmapss"] = {s: {"model": d["selected_by_cv"], "rmse": round(d["selected_test"]["rmse"], 1),
-                             "baseline": round(d["baseline_constant"]["rmse"], 1)} for s, d in r["subsets"].items()}
+                             "baseline": round(d["baseline_constant"]["rmse"], 1),
+                             "conditions": d["conditions"], "modes": d["fault_modes"],
+                             "all": {k: round(m["test"]["rmse"], 1) for k, m in d["models"].items()}}
+                         for s, d in r["subsets"].items()}
     path = REPORTS / "metropt" / "results.json"
     if path.exists():
         r = json.loads(path.read_text(encoding="utf-8"))
         ae = r["detectors"].get("autoencoder__absolute")
         if ae:
             out["metropt"] = {"detected": ae["detected_2h"], "chance": ae["chance_detected_2h"],
-                              "fa_week": ae["false_alarms_per_week"]}
+                              "fa_week": ae["false_alarms_per_week"],
+                              "detectors": [{"key": k, "detector": d["detector"], "view": d["view"], "detected": d["detected_2h"],
+                                             "chance": d["chance_detected_2h"], "fa": d["false_alarms_per_week"]}
+                                            for k, d in r["detectors"].items()],
+                              "seeds": r.get("autoencoder_seeds", [])}
     return out
 
 

@@ -6,29 +6,52 @@
 ![python](https://img.shields.io/badge/python-3.10%20%7C%203.11-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![data](https://img.shields.io/badge/data-4%20public%20datasets-informational)
+![docker](https://img.shields.io/badge/demo-docker-2496ED)
 
-Two real Scania truck datasets, the air compressor of a metro train and NASA's turbofan benchmark. Each one is a different predictive-maintenance task: a cost-weighted risk decision, a cost-weighted failure classifier, remaining useful life, and anomaly detection without labels. They all follow one protocol: six model families per task, every model selected **without looking at the test set**, and every headline number reported with a bootstrap interval or a chance level.
+**Which trucks should go to the workshop, and how much does that save?** Four public predictive-maintenance datasets (two real Scania truck fleets, a metro train's air compressor and NASA's turbofan benchmark), eight model families, and one rule throughout: nothing is selected by looking at the test set, and every headline number carries an interval or a chance level.
+
+**[Interactive page](https://rxyxs.github.io/heavy-truck-predictive-maintenance/)** · **[5-minute quickstart notebook](notebooks/quickstart.ipynb)** · **[Run the API in Docker](#try-it-in-two-minutes)** · **[Model release](https://github.com/Rxyxs/heavy-truck-predictive-maintenance/releases)**
 
 ![Overview of the four datasets](reports/figures/en/overview.png)
 
-**[Interactive page](https://rxyxs.github.io/heavy-truck-predictive-maintenance/)**: move the cost of a workshop visit and watch the SCANIA decision, and its saving, change for the old and the new model.
-
-## Results at a glance
+## At a glance
 
 | Dataset | Task | Data | Model picked without the test set | Result on the test set |
 |---|---|---|---|---|
-| [SCANIA Component X](#1-scania-component-x-risk-decision-under-a-cost-matrix) | 5-class failure window → maintenance action | real, 33,641 trucks | MLP on scale-invariant features | **24.2%** lower official cost (95% CI 13.8–33.8); 37.0% on validation |
+| [SCANIA Component X](#1-scania-component-x-risk-decision-under-a-cost-matrix) | 5-class failure window → maintenance action | real, 33,641 trucks | mean of LightGBM, XGBoost and CatBoost, each averaged over 3 seeds | **29.1%** lower official cost (95% CI 18.6–37.6); 41.7% on validation |
 | [APS Failure at Scania Trucks](#2-aps-failure-at-scania-trucks-cost-weighted-classification) | air-pressure-system failure, yes/no | real, 76,000 trucks | mean of LightGBM, XGBoost and CatBoost | cost **9,150** (95% CI 6,620–11,850); challenge winner: 9,920 |
 | [NASA C-MAPSS](#3-nasa-c-mapss-remaining-useful-life) | remaining useful life | simulated, 1,416 engines | picked per subset by grouped CV (GRU or ensemble) | RMSE **15.4 / 27.4 / 13.7 / 28.9** on FD001–FD004; a constant scores 43–55 |
 | [MetroPT-3](#4-metropt-3-anomaly-detection-without-labels) | air-leak detection, no labels | real, 1.5 M readings | five detectors reported side by side | autoencoder: **4 of 4** leaks in all 6 seeds (~2 expected by chance), 5.5–13.7 false alarms/week |
 
-## What I found
+## Key findings
 
-1. **The SCANIA Component X splits are on different scales.** Every anonymised variable is multiplied by its own factor (×0.16 to ×3.9), and the factor changes between training, validation and test. A classifier separates training from validation readouts with AUC 1.00. The same LightGBM with the same hyperparameters overstates the risk 2.7 to 6.3 times on raw-scale features, and only 1.5 times on features that cancel the factor (4.2% predicted against 2.7% observed on validation). The cost of a workshop visit at which its saving runs out rises from ×1.65 to ×4.14 on validation and from ×1.90 to ×2.90 on test. At the benchmark's own cost the fix does not raise the test saving (26.2% against 28.5%). What it buys is a policy that loses far less when visits get expensive: at ×10, −12% instead of −138% on validation and −45% on test.
-2. **Validation drawn from the training split cannot see that, and cannot pick a winner either.** On held-out training trucks the raw-scale model looks like the best of all (5,105 expected cost per 1,000 trucks). Only the differently scaled splits expose it, and I found it with adversarial validation, which uses the features of validation and test but never their labels. Among the scale-invariant models the held-out scores are within training noise. Retrained with five more seeds, the MLP scores 5,237–5,380 per 1,000 trucks and XGBoost 5,085–5,277. The MLP was picked because its seed 42 happened to be its best (5,116), a winner's curse. On test, XGBoost saves 30.6–33.3% across its six seeds and the MLP 21.4–26.7%.
-3. **On APS the threshold transfers.** The cost-minimising threshold is fixed on out-of-fold training predictions. Re-tuning it on the test set, which is not a valid result, would lower the ensemble's cost by only 60 (9,150 → 9,090), so the reported number is not an artefact of where the threshold landed.
-4. **The "healthy" reference period of MetroPT-3 is not healthy.** On 29 March the compressor ran under load all day, the signature of a leak, with no failure in the company's log. A detector whose alarm threshold is calibrated on that period goes blind. The duty-cycle z-score raises zero alarms in five months, including during the four reported leaks.
-5. **Neural networks win on simple sequences and not on tabular features.** On the single-condition C-MAPSS subsets a GRU over the last 30 cycles is the best model (test RMSE 15.4 and 13.7, against 17.9–18.8 for the best tree). With six operating conditions it falls behind the trees (29.7 and 30.7 against 27.6 and 28.7), and the 1D-CNN is the worst model there in cross-validation. On the two tabular Scania problems the MLP reaches its best validation loss within 3 to 8 epochs, and on test it trails the best boosting model in both. Every network ran at least 100 epochs with the best checkpoint restored, so this is not undertraining.
+1. **The SCANIA Component X splits are on different scales.** Each anonymised variable is multiplied by its own factor (×0.16 to ×3.9) that changes between training, validation and test; a classifier tells the splits apart with AUC 1.00. With features that cancel the factor, the same LightGBM predicts 4.2% mean risk instead of 16.9% (2.7% observed), and its saving survives workshop visits up to ×4.14 (validation) and ×3.12 (test) the benchmark's cost, instead of ×1.65 and ×1.90. [Details](#the-hidden-scale-shift)
+2. **One seed per model picks the luckiest initialisation.** Retrained with three seeds, every family's held-out score moves by up to 185 per 1,000 trucks, more than the gap between the best models. Averaging each family over its seeds makes the selection stable and improves the models themselves: LightGBM's held-out cost goes from 5,382–5,419 per seed to 5,208 averaged. [Details](#how-much-of-the-ranking-is-noise)
+3. **On APS the threshold transfers.** It is fixed on out-of-fold training predictions; re-tuning it on the test set (not a valid result) would lower the cost by only 60. [Details](#2-aps-failure-at-scania-trucks-cost-weighted-classification)
+4. **MetroPT-3's "healthy" reference is not healthy, and its autoencoder depends on the seed.** On 29 March the compressor ran under load all day with no failure in the log, which blinds a duty-cycle detector. The autoencoder catches all four leaks with every seed, but its false alarms range from 5.5 to 13.7 a week. [Details](#4-metropt-3-anomaly-detection-without-labels)
+5. **Sequence models win on simple sequences, not on noisy fleets.** A GRU is the best model on the single-condition C-MAPSS subsets (RMSE 15.4 and 13.7), but on the SCANIA readout histories it saves 21.1% on test against 29.1% for the boosting ensemble, and the MLP trails boosting on both tabular problems.
+
+## Try it in two minutes
+
+The trained SCANIA model is published as a release asset, so the API runs without downloading any data or training anything:
+
+```bash
+docker build -t truck-risk .
+docker run -p 8000:8000 -e RISK_API_KEY=change-me truck-risk
+curl -s -X POST localhost:8000/score -H "X-API-Key: change-me" -H "Content-Type: application/json" \
+     --data @examples/truck_189_class4.json
+```
+
+Or without Docker: `pip install -r requirements.txt`, then `python -m src.demo fetch-model` and `python -m src.demo score`. The four example trucks are real validation trucks, chosen to show both sides of the model:
+
+| Example | What really happened | Readouts | Predicted risk | Recommendation |
+|---|---|---:|---:|---|
+| `truck_10_class0.json` | no repair within 48 units | 102 | 1.3% | no action (class 0) |
+| `truck_1285_class3.json` | repaired 6–12 units later | 109 | 6.1% | take off the road now (class 4) |
+| `truck_189_class4.json` | repaired within 6 units | 61 | 4.1% | urgent check (class 3) |
+| `truck_3309_class4.json` | repaired within 6 units | 32 | 1.1% | no action (class 0) |
+
+The model misses about four in ten failing trucks at the benchmark's costs, and truck 3309 is one of them.
 
 ## Architecture
 
@@ -41,14 +64,14 @@ flowchart LR
         MP["MetroPT-3<br/>1.5 M readings"]
     end
     SC --> ADV["Scale diagnosis<br/>adversarial validation"] --> INV["Scale-invariant<br/>features"]
-    INV --> ZOO["Tabular model zoo<br/>LR · RF · LightGBM · XGBoost<br/>CatBoost · MLP · ensemble"]
+    INV --> ZOO["Model zoo, 3 seeds each<br/>LR · RF · LightGBM · XGBoost<br/>CatBoost · MLP · GRU · ensemble"]
     AP --> ZOO
     CM --> RUL["RUL models<br/>Ridge · RF · LightGBM · XGBoost<br/>1D-CNN · GRU · ensemble"]
     MP --> WIN["10-minute windows"] --> DET["Detectors<br/>rule · z-score · PCA<br/>isolation forest · autoencoder"]
     ZOO --> SEL["Selection without test<br/>held-out / out-of-fold cost"]
     RUL --> CV["Grouped CV by engine"]
     DET --> EVT["Event scoring<br/>vs. chance level"]
-    SEL --> DEC["Minimum expected cost<br/>decision"] --> API["FastAPI /score"]
+    SEL --> CAL["Isotonic calibration<br/>out of sample"] --> DEC["Minimum expected cost<br/>decision"] --> API["FastAPI /score · Docker"]
     SEL & CV & EVT --> REP["reports/*.json · figures (EN/ES)<br/>GitHub Pages"]
 ```
 
@@ -57,7 +80,8 @@ flowchart LR
 - **No selection on the test set.** SCANIA picks on held-out training trucks, APS on out-of-fold training predictions, C-MAPSS on cross-validation grouped by engine. MetroPT-3 has no labels to select with, so all five detectors are reported. The test set is looked at once, with every model.
 - **Early stopping on a separate set.** Boosting models and networks stop on data that is neither the scored fold nor the test set.
 - **Neural networks** (PyTorch): at least 100 epochs, early stopping by patience after that, best checkpoint restored and saved (`src/models/nets.py`). They run on the GPU when one is available.
-- **Uncertainty.** Bootstrap intervals by truck for costs and savings, and paired bootstrap between models. For MetroPT-3, a chance level: the same alarm series shifted in time 500 times. The networks that decide a result (the SCANIA MLP, the MetroPT autoencoder) are also retrained with several seeds.
+- **Seeds.** Every SCANIA family is trained with three seeds and selected on their averaged probabilities; the MetroPT autoencoder is reported over six seeds.
+- **Uncertainty.** Bootstrap intervals by truck for costs and savings, and paired bootstrap between models. For MetroPT-3, a chance level: the same alarm series shifted in time 500 times.
 - **Hyperparameters are fixed up front** and are the same across datasets unless stated. Nothing is tuned on validation or test.
 
 ---
@@ -98,74 +122,80 @@ Rates inherit the factor. Histogram fractions and the ratio of the recent to the
 
 The dataset describes the validation and test readout as "selected randomly among all readouts" of each truck. It is not uniform. A random training readout falls before time 60 for 26.5% of trucks, but the validation and test readouts do so for 0.9%, and their median sits at 169–172 time units against 109. The model trains on early-life readouts it is never evaluated on. The selection weights (1 / readouts per truck) assume the documented protocol, so they do not correct for this either.
 
-### Seven classifiers, picked on held-out training trucks
+### Eight classifiers, picked on held-out training trucks
 
-Training uses every risky readout plus 5% of the healthy ones (re-weighted ×20), split by truck into 70% fit, 15% early stopping and 15% selection. The selection score is the expected official cost on the selection trucks, with each readout weighted by 1 / (readouts of its truck), which is exactly the one-random-readout protocol of validation and test.
+Training uses every risky readout plus 5% of the healthy ones (re-weighted ×20), split by truck into 70% fit, 15% early stopping and 15% selection. The selection score is the expected official cost on the selection trucks, with each readout weighted by 1 / (readouts of its truck), the one-random-readout protocol of validation and test. **Each family is trained with three seeds and its probabilities are averaged** (the logistic regression has no randomness and runs once). The GRU reads each truck's last 8 readouts of the 48 invariant features with the most gain in LightGBM.
 
-| Model | Held-out cost / 1,000 trucks | Validation saving (95% CI) | Test saving (95% CI) | Mean predicted risk (val. / test) | Saving runs out at (val. / test) |
+| Model (probabilities averaged over its seeds) | Held-out cost / 1,000 trucks | Validation saving (95% CI) | Test saving (95% CI) | Mean predicted risk (val. / test) | Saving runs out at (val. / test) |
 |---|---:|---:|---:|---:|---:|
-| Logistic regression | 5,254 | 31.8% (22.2–40.8) | 21.6% (11.3–30.5) | 3.5% / 3.4% | ×4.14 / ×2.35 |
-| Random forest | 7,756 | 21.0% (5.8–32.4) | 18.2% (3.7–30.1) | 17.3% / 17.1% | ×1.29 / ×1.24 |
-| LightGBM | 5,385 | 31.4% (22.6–40.5) | 26.2% (16.6–34.7) | 4.2% / 4.1% | ×4.14 / ×2.90 |
-| XGBoost (picked in a CPU run) | 5,131 | 41.5% (32.5–50.5) | 30.6% (19.7–39.5) | 3.6% / 3.6% | ×6.78 / ×4.60 |
-| CatBoost | 5,296 | 37.6% (27.8–46.1) | 28.1% (17.2–36.7) | 3.2% / 3.2% | ×7.81 / ×3.12 |
-| **MLP, PyTorch (selected)** | **5,116** | **37.0% (26.9–46.0)** | **24.2% (13.8–33.8)** | **3.5% / 3.4%** | **×5.68 / ×2.04** |
-| Ensemble (mean of the 3 GBMs) | 5,132 | 37.9% (28.8–46.4) | 28.9% (18.1–38.0) | 3.7% / 3.6% | ×6.10 / ×3.47 |
-| *LightGBM on raw-scale features (previous version)* | *5,105* | *28.7% (16.6–37.9)* | *28.5% (18.0–37.3)* | *16.9% / 7.7%* | *×1.65 / ×1.90* |
+| Logistic regression (1 seed, deterministic) | 5,254 | 31.8% (22.2–40.8) | 21.6% (11.3–30.5) | 3.5% / 3.4% | ×4.14 / ×2.35 |
+| Random forest | 7,758 | 21.4% (5.7–32.6) | 18.8% (4.1–30.5) | 17.3% / 17.1% | ×1.29 / ×1.20 |
+| LightGBM | 5,208 | 37.6% (28.3–46.1) | 30.1% (19.2–38.6) | 4.2% / 4.2% | ×4.14 / ×3.12 |
+| XGBoost | 5,089 | 41.8% (32.7–50.1) | 32.7% (22.0–41.5) | 3.6% / 3.6% | ×10.73 / ×4.60 |
+| CatBoost | 5,348 | 40.2% (30.3–48.3) | 26.2% (15.7–35.1) | 3.1% / 3.1% | ×7.81 / ×3.59 |
+| MLP (PyTorch) | 5,127 | 36.9% (26.4–46.1) | 25.8% (15.5–35.5) | 3.7% / 3.7% | ×10.00 / ×2.61 |
+| GRU on the last 8 readouts (PyTorch) | 5,432 | 34.8% (24.4–44.0) | 21.1% (10.7–30.6) | 3.1% / 3.1% | ×3.59 / ×2.90 |
+| **Ensemble of the 3 boosting families (selected)** | **5,019** | **41.7% (32.4–50.3)** | **29.1% (18.6–37.6)** | **3.7% / 3.6%** | **×6.32 / ×3.99** |
+| *LightGBM on raw-scale features (previous version, 1 seed) | 5,105 | 28.7% (16.6–37.9) | 28.5% (18.0–37.3) | 16.9% / 7.7% | ×1.65 / ×1.90* |
 
 Observed failure rate: 2.7% on validation and 2.8% on test. "Saving runs out at" is the cost of an unnecessary visit, as a multiple of the benchmark's 7–10, above which the saving falls below 1%.
 
 ![Saving by model](reports/figures/en/scania_models.png)
 
-- **The pick is a coin toss among the top three.** On held-out trucks the MLP, XGBoost and the ensemble are within 16 points per 1,000 trucks, and the next section shows that this is less than either model moves between seeds. I report the pick as the fixed rule made it instead of re-running until it looked better on test. On validation and test the intervals of the good models overlap: with 136 and 142 failing trucks they cannot be told apart with confidence.
-- **The random forest is badly calibrated** (17% predicted risk). Its leaves average the re-weighted training rows, and a leaf made only of risky rows predicts 100% risk. It is the worst model here for that reason, not for lack of ranking power (validation AUC 0.72).
-- **The raw-scale model's test saving looks fine** (28.5%), which is how the problem hid in the previous version of this repository. Its probabilities are not credible, and the next figure shows what that costs, comparing it with the same LightGBM on invariant features.
+- **The boosting ensemble is selected on held-out trucks (5,019 per 1,000), and XGBoost alone is the best model on test.** The paired bootstrap below puts XGBoost ahead of the selected ensemble in 99.6% of test resamples (+3.7 points, 95% interval +0.7 to +7.1), but they tie on validation (+0.1 points, 52%). With 136 and 142 failing trucks, the good models' intervals overlap.
+- **Reading the trajectory does not help.** The GRU over the last 8 readouts saves 21.1% on test, below every boosting model: the recent-rate features already summarise what the history adds, and the network overfits within 4–5 epochs.
+- **The random forest is badly calibrated** (17% predicted risk). Its leaves average the re-weighted training rows, so a leaf made only of risky rows predicts 100%. It ranks reasonably (test AUC 0.64); its probabilities are the problem.
+- **The raw-scale model's test saving looks fine** (28.5%), which is how the scale problem hid in the previous version of this repository. Its probabilities are not credible, and the robustness section shows what that costs.
 
 ### How much of the ranking is noise
 
 ![Same model, another seed](reports/figures/en/scania_seed_spread.png)
 
-The MLP and XGBoost retrained with five more seeds each, same rows, same features:
+| Family | Held-out cost, seeds 42 / 1 / 2 | Averaged over seeds | Test saving, seeds 42 / 1 / 2 | Averaged |
+|---|---:|---:|---:|---:|
+| LightGBM | 5,385 / 5,382 / 5,419 | **5,208** | 26.2% / 27.5% / 27.3% | 30.1% |
+| XGBoost | 5,131 / 5,263 / 5,173 | **5,089** | 30.6% / 31.7% / 32.8% | 32.7% |
+| CatBoost | 5,296 / 5,322 / 5,481 | **5,348** | 28.1% / 24.4% / 24.7% | 26.2% |
+| MLP | 5,116 / 5,271 / 5,237 | **5,127** | 24.2% / 21.5% / 26.7% | 25.8% |
+| GRU | 5,512 / 5,406 / 5,497 | **5,432** | 22.1% / 21.4% / 20.4% | 21.1% |
+| Random forest | 7,756 / 7,762 / 7,726 | **7,758** | 18.2% / 19.1% / 17.4% | 18.8% |
 
-| | Held-out cost / 1,000 trucks | Validation saving | Test saving |
-|---|---:|---:|---:|
-| XGBoost, 6 seeds | 5,085–5,277 (mean 5,184) | 37.3–44.0% | 30.6–33.3% |
-| MLP, 6 seeds | 5,116–5,380 (mean 5,280) | 33.7–38.4% | 21.4–26.7% |
-
-Seed 42 is the MLP's best of six on held-out trucks, and that is why the rule picked it: with one seed per model, the selection rewards whichever model drew the luckiest initialisation. Averaged over seeds, the same held-out score would have picked XGBoost, which is also the more stable model on test. I did not switch the reported pick, because that decision would be made after seeing the test results; for a deployment I would select on the mean over seeds from the start.
+The first version of this pipeline trained each family once, with seed 42. That picked the MLP, because seed 42 was its best draw (5,116, against 5,237–5,271 with the other seeds), and on test the MLP saved less than any boosting model. Averaging seeds removes that luck from the selection, and the averaged models are better than their typical seed: LightGBM goes from 5,382–5,419 per seed to 5,208. This is protocol v2. I adopted it after the seed analysis, which uses held-out trucks and not test, and I report every family under it.
 
 ![Paired bootstrap against the selected model](reports/figures/en/scania_paired_bootstrap.png)
 
-The paired bootstrap resamples the same trucks for every model, which removes the noise the models share. On test, XGBoost beats the selected MLP in 97% of resamples (+6.5 points, 95% interval −0.6 to +13.6) and the ensemble in 92%. On validation the margins are smaller (XGBoost +4.6 points, 89%).
+The paired bootstrap resamples the same trucks for every model, which removes the noise they share. On test, XGBoost beats the selected ensemble in 99.6% of resamples and LightGBM in 67%; CatBoost, the MLP and the raw-scale model do not (12–42%). On validation only XGBoost ties it (52%).
 
 ### Robustness to the cost assumption
 
 ![Saving as the visit cost grows](reports/figures/en/scania_visit_cost.png)
 
-With credible probabilities the minimum-expected-cost policy should never do worse than doing nothing. It should simply alarm less as visits get more expensive. Same model, same hyperparameters, only the features change. On raw-scale features LightGBM loses money as soon as a visit costs about twice the benchmark's, and reaches −138% (validation) and −45% (test) at ×10. On invariant features it stays above zero up to ×3 and ends at −12% at ×10, because it still overstates the risk in its top bands. At ×1 on test the raw-scale model saves slightly more (28.5% against 26.2%), so the fix buys robustness to the cost assumption, not a better score on the benchmark's own matrix.
+With credible probabilities the minimum-expected-cost policy should never do worse than doing nothing; it should just alarm less as visits get more expensive. Same model and hyperparameters, only the features change: on raw-scale features LightGBM loses money as soon as a visit costs about twice the benchmark's and reaches −138% (validation) and −45% (test) at ×10. On invariant features it stays above zero up to ×3 and ends at −10% and −14%. At ×1 the invariant model now also saves more on test (30.1% against 28.5%), but the main gain is robustness to the cost assumption.
+
+**Calibrating out of sample helps a little more.** An isotonic regression fitted on the selection trucks (held out from training, never validation or test) raises the selected ensemble's saving from 41.7% to 44.1% on validation and from 29.1% to 30.9% on test, and keeps it near zero at ×10 instead of negative. The API serves these calibrated probabilities.
 
 ### Where the cost comes from, and how early a failure shows
 
 ![Cost breakdown on test](reports/figures/en/scania_cost_breakdown.png)
 
-Doing nothing costs 56,100 on test, all of it missed failures. Every scale-invariant model except the random forest removes roughly half of that and adds 12,000–15,000 of false alarms, and missed failures remain the largest share of what is left (23,500 of 38,955 for XGBoost). The raw-scale model gets its similar total differently: it alarms more (21,207 in false alarms) and misses less (14,200), the behaviour of a model that overstates risk. The random forest alarms almost everyone (43,703 in false alarms).
+Doing nothing costs 56,100 on test, all of it missed failures. The selected ensemble removes more than half of that and adds 14,430 of false alarms; missed failures are still the largest share of what is left (23,800 of 39,773). The raw-scale model gets a similar total the other way round, alarming more (21,207) and missing less (14,200), as a model that overstates risk does. The random forest alarms almost everyone (43,940 in false alarms).
 
 ![Risk by time left before the repair](reports/figures/en/scania_lead_time.png)
 
-On every readout of held-out training trucks, the share that gets an alarm rises steadily as the repair approaches. For the selected MLP it is 13% more than 192 units out, 48% at 48–96 units and 73% in the last 6 units, against 22% for trucks that are never repaired. The signal is a slow drift that starts 100–200 time units before the repair, much earlier than the 48-unit window the challenge scores. That is why the model cannot tell the windows apart and almost always recommends class 4.
+On every readout of held-out training trucks, the share that gets an alarm rises steadily as the repair approaches. For the selected ensemble it is 6% more than 192 units out, 24% at 96–192, 44% at 48–96 and 73% in the last 6 units, against 20% for trucks that are never repaired. The signal is a slow drift that starts 100–200 time units before the repair, much earlier than the 48-unit window the challenge scores, which is why the model cannot tell the windows apart and almost always recommends class 4.
 
 ![ROC and precision-recall on test](reports/figures/en/scania_roc_pr.png)
 
-Ranking power is modest and similar across models: any-risk ROC AUC 0.70–0.71 on test for XGBoost, LightGBM, the ensemble and the raw-scale model, and 0.65 for the selected MLP. Average precision is 0.05–0.07 against a base rate of 0.028.
+Ranking power is modest and similar across the boosting models: any-risk ROC AUC 0.70–0.71 on test for XGBoost, LightGBM, the ensemble and the raw-scale model, 0.66 for the MLP and 0.65 for the GRU. Average precision is 0.05–0.08 against a base rate of 0.028.
 
 ![Kaplan-Meier survival](reports/figures/en/scania_survival.png)
 
-Over the study, 9.6% of training trucks had component X repaired. Of the eight anonymised specifications, `Spec_7` separates survival most (log-rank χ² 425, p < 10⁻⁸⁰). Its category Cat1 has a 14.1% repair rate against 7.0% for Cat4. `Spec_5` does not separate it at all (p = 0.36). `Spec_7` is also the second most important feature of the time-to-failure model below.
+Over the study, 9.6% of training trucks had component X repaired. Of the eight anonymised specifications, `Spec_7` separates survival most (log-rank χ² 425, p < 10⁻⁸⁰). Its category Cat1 has a 14.1% repair rate against 7.0% for Cat4, while `Spec_5` does not separate it at all (p = 0.36). `Spec_7` is also the second most important feature of the time-to-failure model below.
 
 <details>
-<summary>What the decision looks like, time to failure, survival and SHAP</summary>
+<summary>What the decision looks like, time to failure, survival models and SHAP</summary>
 
-**Decision (selected MLP, minimum expected cost).** It alarms 85 of 136 failing trucks on validation (62%) and 74 of 142 on test (52%), and 31% and 30% of healthy trucks. More than 99% of its alarms are class 4, so in practice it is an "alarm / no alarm" switch and does not resolve the intermediate windows. Any-risk ROC AUC: 0.722 on validation and 0.654 on test (XGBoost: 0.744 and 0.706). Platt slope of its risk: 0.66 fitted on validation and 0.43 on test, where 1 would be perfect calibration.
+**Decision (selected ensemble, minimum expected cost).** It alarms 96 of 136 failing trucks on validation (71%) and 82 of 142 on test (58%), and 31% and 30% of healthy trucks. About 87% of its alarms are class 4, so in practice it is an "alarm / no alarm" switch and does not resolve the intermediate windows. Any-risk ROC AUC: 0.745 on validation and 0.705 on test.
 
 ![Confusion matrix on test](reports/figures/en/scania_confusion.png)
 
@@ -339,7 +369,7 @@ python -m src.cli all         # scania, aps, cmapss, metropt, figures, site
 pytest                        # tests on synthetic data; the ones that need a dataset skip if it is missing
 ```
 
-Run times on a 16-core CPU with an RTX 4060 Ti: SCANIA ~45 min (CatBoost ~10, the seed analysis ~12), APS ~12 min, C-MAPSS ~1.5 h (deterministic cuDNN is slower), MetroPT-3 ~10 min (six autoencoder seeds). Each step can run alone: `python -m src.cli scania`, and so on.
+Run times on a 16-core CPU with an RTX 4060 Ti: SCANIA ~1 h (7 families × 3 seeds; CatBoost takes ~30 min of it), APS ~12 min, C-MAPSS ~1.5 h (deterministic cuDNN is slower), MetroPT-3 ~10 min (six autoencoder seeds). Each step can run alone: `python -m src.cli scania`, and so on.
 
 Outputs: `reports/<dataset>/results.json`, figures in `reports/figures/{en,es}/`, the page in `docs/`. Models and checkpoints go to `data/processed/models/`, which is not versioned.
 
@@ -352,7 +382,7 @@ export RISK_API_KEY=change-me
 uvicorn src.api.main:app
 ```
 
-The model is the selected SCANIA classifier on scale-invariant features. Its probabilities are recalibrated with a single Platt fit on validation and test together, to serve them and not to report performance. `probabilidad_algun_riesgo_cruda` gives the raw value.
+The model is the selected SCANIA classifier on scale-invariant features (`python -m src.demo fetch-model` downloads it from the release; `python -m src.cli scania` retrains it). Its probabilities go through the isotonic calibration fitted on held-out training trucks, the one evaluated above; `probabilidad_algun_riesgo_cruda` gives the uncalibrated value. The `Dockerfile` builds a self-contained image of this service.
 
 ## Layout
 
@@ -368,6 +398,7 @@ src/models/aps_pipeline.py      APS: cross-validated model zoo under the challen
 src/models/rul_estimator.py     C-MAPSS models (tabular and sequence)
 src/models/rul_benchmark.py     C-MAPSS FD001-FD004 benchmark
 src/models/metropt_pipeline.py  MetroPT-3 windows, detectors, event scoring, chance level
+src/models/sequence_scania.py   SCANIA GRU over each truck's readout history
 src/models/scania_analysis.py   SCANIA survival, lead time, curves, cost breakdown, paired bootstrap
 src/models/make_figures.py      results figures, in English and Spanish
 src/models/analysis_figures.py  analysis figures (exploration, diagnostics, robustness), in English and Spanish
@@ -375,6 +406,10 @@ src/models/cost_decision.py     minimum-expected-cost decision under the SCANIA 
 src/models/calibration.py       calibration tables, Platt scaling, sensitivity to the visit cost
 src/site.py                     builds the GitHub Pages page (docs/, generated)
 src/api/main.py                 FastAPI service
+src/demo.py                     published model, example trucks, scoring without training
+examples/                       four real validation trucks as /score request bodies
+notebooks/quickstart.ipynb      five-minute tour (built by notebooks/build_quickstart.py)
+Dockerfile                      the API with the published model
 tests/                          unit tests on synthetic data, plus consistency checks on the reported results
 ```
 
@@ -384,7 +419,7 @@ An earlier version of this repository ran on a synthetic data generator and cont
 
 Code: MIT. Data, not redistributed here (each loader downloads it from the source):
 
-- SCANIA Component X: © Scania CV AB, CC BY 4.0. Lindgren et al., *SCANIA Component X dataset: a real-world multivariate time series dataset for predictive maintenance*, [arXiv:2401.15199](https://arxiv.org/abs/2401.15199).
+- SCANIA Component X: © Scania CV AB, CC BY 4.0 (the four trucks in `examples/` are taken from its validation set). Lindgren et al., *SCANIA Component X dataset: a real-world multivariate time series dataset for predictive maintenance*, [arXiv:2401.15199](https://arxiv.org/abs/2401.15199).
 - APS Failure at Scania Trucks: © Scania CV AB, GNU GPL v3, UCI Machine Learning Repository.
 - NASA C-MAPSS: Saxena et al., *Damage propagation modeling for aircraft engine run-to-failure simulation*, PHM 2008. NASA Prognostics Center of Excellence.
 - MetroPT-3: Veloso et al., *The MetroPT dataset for predictive maintenance*, Scientific Data 9, 764 (2022). CC BY 4.0, UCI Machine Learning Repository.

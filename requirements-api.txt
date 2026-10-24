@@ -1,0 +1,16 @@
+# Lo minimo para servir el modelo (la imagen de Docker); PyTorch de CPU se instala aparte
+numpy>=1.26.0
+pandas>=2.1.0
+polars>=1.21.0
+pyarrow>=14.0.0
+scipy>=1.11.0
+scikit-learn>=1.6.0,<1.8
+lightgbm>=4.7.0
+xgboost>=2.1.0
+catboost>=1.2.5
+joblib>=1.3.0
+requests>=2.31.0
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.6.0
+slowapi>=0.1.9

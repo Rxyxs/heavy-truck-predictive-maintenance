@@ -98,9 +98,12 @@
     </div>
   </header>
 
+  <nav class="links" aria-label="datasets" style="margin:-8px 0 18px">
+    <a href="#scania">SCANIA Component X</a><a href="#aps">APS</a><a href="#cmapss">NASA C-MAPSS</a><a href="#metropt">MetroPT-3</a>
+  </nav>
   <div class="tiles" id="tiles"></div>
 
-  <h2 data-i18n="h_problem"></h2>
+  <h2 id="scania" data-i18n="h_problem"></h2>
   <p data-i18n="p_problem"></p>
   <div class="tablewrap"><table id="tCost"></table></div>
   <p class="fine" data-i18n="p_cost_note"></p>
@@ -136,9 +139,11 @@
   <p data-i18n="p_models"></p>
   <div class="tablewrap"><table id="tModels"></table></div>
   <figure><img data-fig="scania_models.png" alt="" loading="lazy"><figcaption data-i18n="f_models"></figcaption></figure>
+  <figure><img data-fig="scania_seed_spread.png" alt="" loading="lazy"><figcaption data-i18n="f_seeds"></figcaption></figure>
 
   <h2 data-i18n="h_results"></h2>
   <figure><img data-fig="scania_confusion.png" alt="" loading="lazy"><figcaption data-i18n="f_conf"></figcaption></figure>
+  <figure><img data-fig="scania_lead_time.png" alt="" loading="lazy"><figcaption data-i18n="f_lead"></figcaption></figure>
   <h3 data-i18n="t_ttf"></h3>
   <div class="tablewrap"><table id="tTtf"></table></div>
   <p class="fine" data-i18n="p_ttf"></p>
@@ -150,6 +155,26 @@
   <p data-i18n="p_others"></p>
   <ul id="others"></ul>
   <figure><img data-fig="overview.png" alt="" loading="lazy"><figcaption data-i18n="f_overview"></figcaption></figure>
+
+  <h2 id="aps" data-i18n="h_aps"></h2>
+  <p data-i18n="p_aps"></p>
+  <div class="tablewrap"><table id="tAps"></table></div>
+  <figure><img data-fig="aps_models.png" alt="" loading="lazy"><figcaption data-i18n="f_aps"></figcaption></figure>
+  <figure><img data-fig="aps_threshold.png" alt="" loading="lazy"><figcaption data-i18n="f_aps_thr"></figcaption></figure>
+  <figure><img data-fig="aps_missingness.png" alt="" loading="lazy"><figcaption data-i18n="f_aps_miss"></figcaption></figure>
+
+  <h2 id="cmapss" data-i18n="h_cm"></h2>
+  <p data-i18n="p_cm"></p>
+  <div class="tablewrap"><table id="tCm"></table></div>
+  <figure><img data-fig="cmapss_models.png" alt="" loading="lazy"><figcaption data-i18n="f_cm"></figcaption></figure>
+  <figure><img data-fig="cmapss_error_by_rul.png" alt="" loading="lazy"><figcaption data-i18n="f_cm_err"></figcaption></figure>
+
+  <h2 id="metropt" data-i18n="h_mp"></h2>
+  <p data-i18n="p_mp"></p>
+  <div class="tablewrap"><table id="tMp"></table></div>
+  <p class="fine" id="mpSeeds"></p>
+  <figure><img data-fig="metropt_failures.png" alt="" loading="lazy"><figcaption data-i18n="f_mp_zoom"></figcaption></figure>
+  <figure><img data-fig="metropt_operating.png" alt="" loading="lazy"><figcaption data-i18n="f_mp_op"></figcaption></figure>
 
   <h2 data-i18n="h_limits"></h2>
   <ul id="limits"></ul>
@@ -201,8 +226,8 @@ const I18N = {
     cal_range: "Riesgo predicho", cal_n: "Camiones", cal_pred: "Predicho", cal_obs: "Observado", cal_split: "Conjunto", cal_model: "Modelo",
     model_lgb: "Invariantes", model_raw: "Escala cruda",
     cal_note: "En rojo, los tramos donde el riesgo predicho duplica o más el observado. Con features invariantes el modelo todavía exagera en los tramos altos, pero su promedio queda cerca de lo observado.",
-    h_models: "4. Siete modelos, elegidos sin mirar validación ni test",
-    p_models: "Regresión logística, bosque aleatorio, LightGBM, XGBoost, CatBoost, una red MLP en PyTorch (mínimo 100 épocas, parada temprana y checkpoint) y el promedio de los tres boosting, todos con las mismas filas y las mismas features invariantes. El elegido es el de menor costo esperado en camiones retenidos del entrenamiento, ponderando cada lectura como si se eligiera una al azar por camión (el protocolo de validación y test): <b>{model}</b>. Validación y test se miran una vez, con todos. El margen entre los mejores en los camiones retenidos es ruido: reentrenados con cinco semillas más, la MLP saca 5.237–5.380 y XGBoost 5.085–5.277. La MLP se eligió porque la semilla 42 fue su mejor resultado.",
+    h_models: "4. Ocho modelos, elegidos sin mirar validación ni test",
+    p_models: "Regresión logística, bosque aleatorio, LightGBM, XGBoost, CatBoost, una red MLP y una GRU sobre las últimas 8 lecturas en PyTorch (mínimo 100 épocas, parada temprana y checkpoint) y el promedio de los tres boosting, todos con las mismas filas y las mismas features invariantes. El elegido es el de menor costo esperado en camiones retenidos del entrenamiento, ponderando cada lectura como si se eligiera una al azar por camión (el protocolo de validación y test): <b>{model}</b>. Validación y test se miran una vez, con todos. Cada familia se entrena con tres semillas y se elige con sus probabilidades promediadas: con una sola semilla, la selección premiaba la inicialización más afortunada (así se eligió la MLP en la primera versión).",
     m_model: "Modelo", m_sel: "Costo retenidos / 1.000", m_val: "Ahorro validación", m_test: "Ahorro test", m_be: "Se agota en (val. / test)",
     f_models: "Ahorro frente a no hacer nada con intervalo bootstrap al 95% (remuestreo de camiones). Con ~140 camiones que fallan por conjunto, los intervalos de los mejores modelos se solapan.",
     h_results: "5. Qué dice el modelo, y qué no",
@@ -219,7 +244,26 @@ const I18N = {
     o_cmapss: "<b>NASA C-MAPSS</b> (turbinas simuladas, vida útil restante): RMSE en test {list}.",
     o_metropt: "<b>MetroPT-3</b> (real, compresor de aire de un tren de metro, sin etiquetas): un autoencoder detecta {det} de 4 fugas reportadas, contra {chance} esperadas por azar, con {fa} falsas alarmas por semana.",
     f_overview: "Resumen de los cuatro datasets. Detalle en el README.",
-    h_limits: "7. Límites",
+    f_seeds: "El mismo modelo con otras semillas: el puntaje de selección se mueve más que la distancia entre los mejores modelos.",
+    f_lead: "En camiones retenidos del entrenamiento, la fracción de lecturas con alarma sube de forma sostenida desde unas 100–200 unidades antes de la reparación: el modelo ve una deriva lenta, no la ventana de 48 unidades del reto.",
+    h_aps: "7. APS Failure at Scania Trucks",
+    p_aps: "Datos reales de {trucks} camiones Scania (sistema de presión de aire, reto IDA 2016). Costo = 10 por revisión innecesaria + 500 por falla no detectada. El umbral se fija con predicciones fuera de partición del entrenamiento; el test se mira una vez. El modelo elegido ({model}) cuesta <b>{cost}</b> en test (IC95% {ci}); el ganador del reto sacó {winner} y no alarmar nunca cuesta {nothing}. Reajustar el umbral mirando el test (no válido) solo lo bajaría a {tuned}.",
+    a_model: "Modelo", a_oof: "Costo fuera de partición", a_cost: "Costo en test (IC95%)", a_fa: "Falsas alarmas", a_missed: "No detectadas",
+    f_aps: "Costo en test con intervalo bootstrap; la línea es el ganador del reto IDA 2016.",
+    f_aps_thr: "El costo es plano alrededor del umbral elegido, por eso se transfiere bien del entrenamiento al test.",
+    f_aps_miss: "Los camiones con el registro completo fallan mucho más que los que tienen faltantes: la ausencia de datos trae señal.",
+    h_cm: "8. NASA C-MAPSS: vida útil restante",
+    p_cm: "Turbinas de avión simuladas por la NASA, el estándar público para estimar vida útil restante. Seis modelos (Ridge, bosque aleatorio, LightGBM, XGBoost, CNN 1D y GRU) y un ensamble, elegidos por validación cruzada agrupada por motor. RMSE en test sobre el último ciclo de cada motor:",
+    c_subset: "Subconjunto", c_cond: "Condiciones / modos", c_sel: "Elegido", c_rmse: "RMSE", c_base: "Constante",
+    f_cm: "RMSE en test por modelo; la línea es una predicción constante. La GRU gana con una condición de operación; con seis, los árboles.",
+    f_cm_err: "Error según la vida restante real. Casi todo el error de los subconjuntos difíciles viene de motores a más de 125 ciclos de la falla, que el modelo subestima (aviso temprano, el error barato).",
+    h_mp: "9. MetroPT-3: detección de fugas sin etiquetas",
+    p_mp: "Compresor de aire real de un tren de metro (febrero–agosto 2020), sin etiquetas por fila: el registro del operador lista cuatro fugas de aire. Cinco detectores ajustados en febrero–marzo; una fuga cuenta como detectada si hay alarma desde 2 h antes de su inicio. El nivel de azar es la misma serie de alarmas desplazada en el tiempo.",
+    m_det: "Detector", m_found: "Fugas detectadas", m_chance: "Por azar", m_fa: "Falsas alarmas / semana",
+    m_seeds: "Autoencoder con {n} semillas: detecta {det} de 4 en todas, con {lo}–{hi} falsas alarmas por semana. Una sola corrida habría dado una impresión engañosa.",
+    f_mp_zoom: "Las cuatro fugas de cerca: las fugas 2 y 3 empiezan de golpe (ningún detector puede adelantarse); la 4 tiene un precursor de 15 horas.",
+    f_mp_op: "Moviendo el percentil del umbral, el isolation forest domina. Elegir el percentil desde esta curva sería ajustar con el periodo de evaluación.",
+    h_limits: "10. Límites",
     limits: [
       "<b>No son datos mineros.</b> Son camiones pesados de carretera de un fabricante europeo; que los números se transfieran a una faena es un supuesto.",
       "<b>El factor de escala es una inferencia.</b> Lo deduzco de los datos (factores consistentes entre los bins de cada variable); el dataset no lo documenta por conjunto.",
@@ -266,8 +310,8 @@ const I18N = {
     cal_range: "Predicted risk", cal_n: "Trucks", cal_pred: "Predicted", cal_obs: "Observed", cal_split: "Dataset", cal_model: "Model",
     model_lgb: "Invariant", model_raw: "Raw scale",
     cal_note: "In red, the bands where the predicted risk is at least twice the observed one. With invariant features the model still overstates in the top bands, but its average is close to what is observed.",
-    h_models: "4. Seven models, selected without looking at validation or test",
-    p_models: "Logistic regression, random forest, LightGBM, XGBoost, CatBoost, an MLP in PyTorch (at least 100 epochs, early stopping and checkpoint) and the mean of the three boosting models, all on the same rows and the same invariant features. The pick is the lowest expected cost on held-out training trucks, weighting each readout as if one were drawn at random per truck (the validation and test protocol): <b>{model}</b>. Validation and test are looked at once, with all of them. The margin between the best models on held-out trucks is noise: retrained with five more seeds, the MLP scores 5,237–5,380 and XGBoost 5,085–5,277. The MLP was picked because seed 42 was its best draw.",
+    h_models: "4. Eight models, selected without looking at validation or test",
+    p_models: "Logistic regression, random forest, LightGBM, XGBoost, CatBoost, an MLP and a GRU over the last 8 readouts in PyTorch (at least 100 epochs, early stopping and checkpoint) and the mean of the three boosting models, all on the same rows and the same invariant features. The pick is the lowest expected cost on held-out training trucks, weighting each readout as if one were drawn at random per truck (the validation and test protocol): <b>{model}</b>. Validation and test are looked at once, with all of them. Each family is trained with three seeds and picked on its averaged probabilities: with a single seed, the selection rewarded the luckiest initialisation (that is how the first version picked the MLP).",
     m_model: "Model", m_sel: "Held-out cost / 1,000", m_val: "Validation saving", m_test: "Test saving", m_be: "Runs out at (val. / test)",
     f_models: "Saving against doing nothing with a 95% bootstrap interval (resampling trucks). With ~140 failing trucks per set, the intervals of the best models overlap.",
     h_results: "5. What the model says, and what it does not",
@@ -284,7 +328,26 @@ const I18N = {
     o_cmapss: "<b>NASA C-MAPSS</b> (simulated turbofans, remaining useful life): test RMSE {list}.",
     o_metropt: "<b>MetroPT-3</b> (real, air compressor of a metro train, no labels): an autoencoder detects {det} of 4 reported leaks, against {chance} expected by chance, with {fa} false alarms per week.",
     f_overview: "Summary of the four datasets. Details in the README.",
-    h_limits: "7. Limits",
+    f_seeds: "The same model with other seeds: the selection score moves more than the gap between the best models.",
+    f_lead: "On held-out training trucks, the share of readouts with an alarm rises steadily from about 100–200 units before the repair: the model sees a slow drift, not the challenge's 48-unit window.",
+    h_aps: "7. APS Failure at Scania Trucks",
+    p_aps: "Real data from {trucks} Scania trucks (air pressure system, IDA 2016 challenge). Cost = 10 per unnecessary check + 500 per missed failure. The threshold is fixed on out-of-fold training predictions; the test set is looked at once. The selected model ({model}) costs <b>{cost}</b> on test (95% CI {ci}); the challenge winner scored {winner} and never alarming costs {nothing}. Re-tuning the threshold on test (not valid) would only bring it to {tuned}.",
+    a_model: "Model", a_oof: "Out-of-fold cost", a_cost: "Test cost (95% CI)", a_fa: "False alarms", a_missed: "Missed",
+    f_aps: "Test cost with a bootstrap interval; the line is the IDA 2016 challenge winner.",
+    f_aps_thr: "The cost is flat around the chosen threshold, which is why it transfers well from training to test.",
+    f_aps_miss: "Trucks with a complete record fail far more often than those with missing values: missingness carries signal.",
+    h_cm: "8. NASA C-MAPSS: remaining useful life",
+    p_cm: "NASA's simulated aircraft turbofans, the public standard for remaining useful life. Six models (Ridge, random forest, LightGBM, XGBoost, 1D-CNN and GRU) and an ensemble, picked by cross-validation grouped by engine. Test RMSE on the last cycle of each engine:",
+    c_subset: "Subset", c_cond: "Conditions / modes", c_sel: "Picked", c_rmse: "RMSE", c_base: "Constant",
+    f_cm: "Test RMSE by model; the line is a constant prediction. The GRU wins with one operating condition; with six, the trees do.",
+    f_cm_err: "Error by true remaining life. Almost all of the error in the hard subsets comes from engines more than 125 cycles from failure, which the model under-predicts (an early warning, the cheap error).",
+    h_mp: "9. MetroPT-3: leak detection without labels",
+    p_mp: "A real air compressor of a metro train (February–August 2020), with no row labels: the operator's log lists four air leaks. Five detectors fitted on February–March; a leak counts as detected if there is an alarm from 2 h before its start. The chance level is the same alarm series shifted in time.",
+    m_det: "Detector", m_found: "Leaks detected", m_chance: "By chance", m_fa: "False alarms / week",
+    m_seeds: "Autoencoder with {n} seeds: it detects {det} of 4 in all of them, with {lo}–{hi} false alarms a week. A single run would have given a misleading picture.",
+    f_mp_zoom: "The four leaks up close: leaks 2 and 3 start abruptly (no detector can warn ahead); leak 4 has a 15-hour precursor.",
+    f_mp_op: "Moving the threshold percentile, the isolation forest dominates. Picking the percentile from this curve would mean tuning on the evaluation period.",
+    h_limits: "10. Limits",
     limits: [
       "<b>Not mining data.</b> These are on-road heavy-duty trucks from a European manufacturer; that the numbers transfer to a mine is an assumption.",
       "<b>The scale factor is an inference.</b> I deduce it from the data (factors consistent across the bins of each variable); the dataset does not document it per split.",
@@ -408,6 +471,31 @@ function textVars() {
   };
 }
 
+function renderDatasets() {
+  const o = DATA.others, det = { es: { lps_rule: "Presostato de baja (regla)", duty_zscore: "z-score del ciclo de trabajo", pca: "Residuo PCA", isolation_forest: "Isolation forest", autoencoder: "Autoencoder" },
+    en: { lps_rule: "Low-pressure switch (rule)", duty_zscore: "Duty-cycle z-score", pca: "PCA residual", isolation_forest: "Isolation forest", autoencoder: "Autoencoder" } }[lang];
+  const view = { absolute: "", drift_adjusted: lang === "es" ? ", ajustada por deriva" : ", drift-adjusted" };
+  if (o.aps) {
+    const a = o.aps;
+    $("tAps").innerHTML = `<thead><tr><th>${t("a_model")}</th><th>${t("a_oof")}</th><th>${t("a_cost")}</th><th>${t("a_fa")}</th><th>${t("a_missed")}</th></tr></thead><tbody>` +
+      a.models.map((m) => `<tr${m.key === a.model ? ' style="font-weight:650"' : ""}><td>${mname(m.key)}</td><td>${num(m.oof)}</td><td>${num(m.cost)} [${num(m.ci[0])}, ${num(m.ci[1])}]</td><td>${num(m.fa)}</td><td>${num(m.missed)}</td></tr>`).join("") + `</tbody>`;
+    document.querySelector('[data-i18n="p_aps"]').innerHTML = fill(t("p_aps"), { trucks: num(a.trucks), model: mname(a.model), cost: num(a.cost), ci: "[" + num(a.ci[0]) + ", " + num(a.ci[1]) + "]", winner: num(a.winner), nothing: num(a.nothing), tuned: num(a.tuned) });
+  }
+  if (o.cmapss) {
+    $("tCm").innerHTML = `<thead><tr><th>${t("c_subset")}</th><th>${t("c_cond")}</th><th>${t("c_sel")}</th><th>${t("c_rmse")}</th><th>${t("c_base")}</th></tr></thead><tbody>` +
+      Object.entries(o.cmapss).map(([s, d]) => `<tr><td>${s}</td><td>${d.conditions} / ${d.modes}</td><td>${mname(d.model)}</td><td><b>${num(d.rmse, 1)}</b></td><td>${num(d.baseline, 1)}</td></tr>`).join("") + `</tbody>`;
+  }
+  if (o.metropt) {
+    const m = o.metropt;
+    $("tMp").innerHTML = `<thead><tr><th>${t("m_det")}</th><th>${t("m_found")}</th><th>${t("m_chance")}</th><th>${t("m_fa")}</th></tr></thead><tbody>` +
+      m.detectors.map((d) => `<tr><td>${det[d.detector]}${view[d.view] || ""}</td><td>${d.detected} / 4</td><td>${num(d.chance, 2)}</td><td>${num(d.fa, 1)}</td></tr>`).join("") + `</tbody>`;
+    if (m.seeds.length) {
+      const fa = m.seeds.map((x) => x.false_alarms_per_week);
+      $("mpSeeds").textContent = fill(t("m_seeds"), { n: m.seeds.length, det: Math.min(...m.seeds.map((x) => x.detected_2h)), lo: num(Math.min(...fa), 1), hi: num(Math.max(...fa), 1) });
+    }
+  }
+}
+
 function renderOthers() {
   const o = DATA.others, items = [];
   if (o.aps) items.push(fill(t("o_aps"), { trucks: num(o.aps.trucks), model: mname(o.aps.model), cost: num(o.aps.cost), ci: "[" + num(o.aps.ci[0]) + ", " + num(o.aps.ci[1]) + "]", winner: num(o.aps.winner), nothing: num(o.aps.nothing) }));
@@ -434,6 +522,7 @@ function renderStatic() {
   document.title = t("h1");
   renderTables();
   renderOthers();
+  renderDatasets();
 }
 
 function renderResult() {

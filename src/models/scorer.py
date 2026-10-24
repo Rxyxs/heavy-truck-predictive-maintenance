@@ -38,13 +38,16 @@ class InvalidReadouts(ValueError):
 class RiskScorer:
     def __init__(
         self, model, feature_cols: list[str], spec_categories: dict[str, list[str]], readout_columns: list[str],
-        platt: dict | None = None,
+        platt: dict | None = None, sequence: dict | None = None, calibrator: dict | None = None,
     ):
         self.model = model
+        self.sequence = sequence  # {"base_cols", "lags"} si el modelo servido es la GRU sobre el historial
         # Parametros {a, b} de la recalibracion de Platt ajustada en validacion y test juntos. Con features
         # invariantes a la escala el modelo ya queda cerca de calibrado en promedio, pero todavia exagera en el
         # tramo de riesgo alto (ver el README); sin estos parametros se usan las probabilidades del modelo.
         self.platt = platt
+        # Isotonica {"x", "y"} ajustada fuera de muestra (camiones retenidos del entrenamiento); tiene prioridad sobre Platt.
+        self.calibrator = calibrator
         self.feature_cols = feature_cols
         self.spec_categories = spec_categories
         self.readout_columns = readout_columns
@@ -54,9 +57,13 @@ class RiskScorer:
         cols = json.loads((models_dir / "feature_columns.json").read_text(encoding="utf-8"))
         cats = json.loads((models_dir / "spec_categories.json").read_text(encoding="utf-8"))
         readout_cols = json.loads((models_dir / "readout_columns.json").read_text(encoding="utf-8"))
+        seq_path = models_dir / "sequence_spec.json"
+        sequence = json.loads(seq_path.read_text(encoding="utf-8")) if seq_path.exists() else None
         platt_path = models_dir / "platt.json"
         platt = json.loads(platt_path.read_text(encoding="utf-8")) if platt_path.exists() else None
-        return cls(joblib.load(models_dir / "risk_classifier.joblib"), cols, cats, readout_cols, platt)
+        cal_path = models_dir / "calibrator.json"
+        calibrator = json.loads(cal_path.read_text(encoding="utf-8")) if cal_path.exists() else None
+        return cls(joblib.load(models_dir / "risk_classifier.joblib"), cols, cats, readout_cols, platt, sequence, calibrator)
 
     def _validate(self, readouts: list[dict], specs: dict[str, str]) -> None:
         if not readouts:
@@ -75,14 +82,25 @@ class RiskScorer:
         self._validate(readouts, specs)
         df = pl.DataFrame([{**{k: r.get(k) for k in self.readout_columns}, "vehicle_id": 0} for r in readouts])
         df = df.select(["vehicle_id", *self.readout_columns]).cast({c: pl.Float64 for c in self.readout_columns})
-        last = E.last_readout_per_vehicle(E.engineer_features(df)).to_pandas()
+        feats = E.engineer_features(df)
+        if self.sequence:
+            # El modelo servido lee el historial: se agregan las lecturas previas antes de quedarse con la ultima.
+            from src.models.sequence_scania import add_lags
+
+            feats = add_lags(feats, self.sequence["base_cols"], self.sequence["lags"])
+        last = E.last_readout_per_vehicle(feats).to_pandas()
         for c in SPEC_COLUMNS:
             last[c] = pd.Categorical([specs[c]], categories=self.spec_categories[c])
         X = last[self.feature_cols].copy()
         numeric = [c for c in self.feature_cols if c not in SPEC_COLUMNS]
         X[numeric] = X[numeric].replace([np.inf, -np.inf], np.nan)  # cocientes con denominador nulo, igual que al entrenar
         raw = self.model.predict_proba(X)
-        proba = K.apply_platt(raw, self.platt["a"], self.platt["b"]) if self.platt else raw
+        if self.calibrator:
+            proba = K.apply_risk_calibration(raw, np.array(self.calibrator["x"]), np.array(self.calibrator["y"]))
+        elif self.platt:
+            proba = K.apply_platt(raw, self.platt["a"], self.platt["b"])
+        else:
+            proba = raw
         expected = C.expected_cost_matrix(proba)[0]
         action = int(expected.argmin())
         return {
@@ -90,7 +108,7 @@ class RiskScorer:
             "probabilidad_por_clase": {str(k): round(float(p), 6) for k, p in enumerate(proba[0])},
             "probabilidad_algun_riesgo": round(float(1.0 - proba[0, 0]), 6),
             "probabilidad_algun_riesgo_cruda": round(float(1.0 - raw[0, 0]), 6),
-            "recalibrada": self.platt is not None,
+            "recalibrada": self.calibrator is not None or self.platt is not None,
             "costo_esperado_por_accion": {str(k): round(float(v), 3) for k, v in enumerate(expected)},
             "clase_recomendada": action,
             "accion_recomendada": ACTIONS[action],

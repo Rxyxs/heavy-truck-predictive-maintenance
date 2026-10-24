@@ -35,7 +35,7 @@ from src.features import engineering as E
 from src.models import calibration as K
 from src.models import cost_decision as C
 from src.models.evaluation import bootstrap
-from src.models.zoo import MODEL_NAMES, TabularModel
+from src.models.zoo import MODEL_NAMES, MeanEnsemble, TabularModel
 
 ROOT = Path(__file__).resolve().parents[2]
 PROCESSED_DIR = ROOT / "data" / "processed"
@@ -49,7 +49,11 @@ SEED = 42
 SPLIT_FRACTIONS = {"early_stop": 0.15, "select": 0.15}
 ENSEMBLE = ["lightgbm", "xgboost", "catboost"]
 N_BOOT = 1000
-SEED_SPREAD = [1, 2, 3, 4, 5]
+# Protocolo v2: cada familia se entrena con varias semillas y se promedian sus probabilidades; la seleccion usa
+# ese promedio. Con una sola semilla la seleccion premiaba la inicializacion mas afortunada (ver el README).
+FAMILY_SEEDS = [42, 1, 2]
+DETERMINISTIC = {"logistic"}  # sin aleatoriedad: una semilla basta
+SEQUENCE_FAMILY = "gru"
 LGB_COMMON = dict(
     learning_rate=0.05, num_leaves=31, subsample=0.8, subsample_freq=1, colsample_bytree=0.3,
     min_child_samples=20, random_state=SEED, verbosity=-1, n_jobs=-1,
@@ -228,16 +232,6 @@ def split_metrics(y, proba, vehicle_ids) -> dict:
     }
 
 
-class MeanEnsemble:
-    """Promedio simple de probabilidades de varios modelos ya entrenados."""
-
-    def __init__(self, models: list):
-        self.models = models
-
-    def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
-        return np.mean([m.predict_proba(X) for m in self.models], axis=0)
-
-
 # ------------------------------------------------------------------------- tiempo restante
 def train_time_to_failure(train_pdf: pd.DataFrame, hold_pdf: pd.DataFrame, cols: list[str]):
     model = lgb.LGBMRegressor(objective="regression_l1", n_estimators=2000, **LGB_COMMON)
@@ -353,7 +347,7 @@ def export_predictions(selected: str, source: Path = ALL_PROBABILITIES, out: Pat
 
 # ------------------------------------------------------------------------------- main
 def run(force_features: bool = False, models: list[str] | None = None) -> dict:
-    models = models or MODEL_NAMES
+    models = models or [*MODEL_NAMES, SEQUENCE_FAMILY]
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -406,24 +400,68 @@ def run(force_features: bool = False, models: list[str] | None = None) -> dict:
         eval_frames[split] = with_specs(frame.to_pandas(), S.read_specs(split), cats)
 
     feature_sets = {"invariantes": invariant_cols + SPEC_COLUMNS, "todas": all_cols + SPEC_COLUMNS}
-    candidates = [(m, "invariantes") for m in models] + [("lightgbm", "todas")]
     fitted, probas = {}, {}
     results["modelos"] = {}
     print(f"[Clasificador] filas ajuste={len(fit_pdf)} parada={len(es_pdf)} seleccion={len(sel_pdf)}", flush=True)
-    for name, fset in candidates:
-        key = name if fset == "invariantes" else f"{name}_escala_cruda"
-        cols = feature_sets[fset]
-        t0 = time.time()
-        model = TabularModel(name, 5, categorical=SPEC_COLUMNS, seed=SEED, checkpoint_dir=MODELS_DIR / "scania")
-        model.fit(clean(fit_pdf, cols), fit_pdf["class_label"], fit_pdf["weight"],
-                  clean(es_pdf, cols), es_pdf["class_label"], es_pdf["weight"])
-        fitted[key] = model
-        probas[key] = {"select": model.predict_proba(clean(sel_pdf, cols))}
-        for split, frame in eval_frames.items():
-            probas[key][split] = model.predict_proba(clean(frame, cols))
-        results["modelos"][key] = {"familia": name, "features": fset, "info": model.info,
-                                   "segundos": round(time.time() - t0, 1)}
-        print(f"[Clasificador] {key} entrenado en {time.time() - t0:.0f}s {model.info}", flush=True)
+
+    def train_family(key, make, frames, seeds):
+        """Entrena una familia con cada semilla, guarda las metricas por semilla y promedia las probabilidades."""
+        fit_x, es_x, sel_x, eval_x = frames
+        t0, models_, per_seed, seed_probas = time.time(), [], [], []
+        for seed in seeds:
+            m = make(seed)
+            m.fit(fit_x, fit_pdf["class_label"], fit_pdf["weight"], es_x, es_pdf["class_label"], es_pdf["weight"])
+            pr = {"select": m.predict_proba(sel_x), **{sp: m.predict_proba(x) for sp, x in eval_x.items()}}
+            per_seed.append({"seed": seed, "info": m.info,
+                             "seleccion": selection_metrics(sel_y, pr["select"], sel_w)["costo_por_1000_camiones"],
+                             **{sp: round(saving_pct(eval_frames[sp]["class_label"].to_numpy(), pr[sp]), 2) for sp in eval_x}})
+            models_.append(m)
+            seed_probas.append(pr)
+            print(f"[Clasificador] {key} semilla {seed}: {per_seed[-1]}", flush=True)
+        fitted[key] = models_[0] if len(models_) == 1 else MeanEnsemble(models_)
+        probas[key] = {k: np.mean([pr[k] for pr in seed_probas], axis=0) for k in seed_probas[0]}
+        return {"semillas": per_seed, "segundos": round(time.time() - t0, 1)}
+
+    def tabular_frames(cols):
+        return clean(fit_pdf, cols), clean(es_pdf, cols), clean(sel_pdf, cols), {sp: clean(f, cols) for sp, f in eval_frames.items()}
+
+    inv = tabular_frames(feature_sets["invariantes"])
+    for name in [m for m in models if m != SEQUENCE_FAMILY]:
+        seeds = FAMILY_SEEDS[:1] if name in DETERMINISTIC else FAMILY_SEEDS
+        meta = train_family(name, lambda sd, n=name: TabularModel(n, 5, categorical=SPEC_COLUMNS, seed=sd,
+                                                                   checkpoint_dir=MODELS_DIR / "scania"), inv, seeds)
+        results["modelos"][name] = {"familia": name, "features": "invariantes", **meta}
+    # Ablacion: el mismo LightGBM con las features en escala cruda (una semilla).
+    meta = train_family(RAW_SCALE_KEY, lambda sd: TabularModel("lightgbm", 5, categorical=SPEC_COLUMNS, seed=sd),
+                        tabular_frames(feature_sets["todas"]), FAMILY_SEEDS[:1])
+    results["modelos"][RAW_SCALE_KEY] = {"familia": "lightgbm", "features": "todas", **meta}
+
+    # --- GRU sobre el historial: las 48 features invariantes con mas ganancia en el LightGBM (solo datos de ajuste)
+    if SEQUENCE_FAMILY in models and "lightgbm" in fitted:
+        from src.models import sequence_scania as SQ
+
+        lgb_first = fitted["lightgbm"].models[0] if isinstance(fitted["lightgbm"], MeanEnsemble) else fitted["lightgbm"]
+        base = SQ.top_features(lgb_first.model_, invariant_cols, SPEC_COLUMNS)
+        lag_train = SQ.add_lags(feats_tr, base).to_pandas()
+        keys = ["vehicle_id", "time_step"]
+
+        def with_lags(frame, lags):
+            out = frame[keys + SPEC_COLUMNS].merge(lags, on=keys, how="left")
+            assert len(out) == len(frame)
+            return out
+
+        lag_eval = {sp: E.last_readout_per_vehicle(SQ.add_lags(load_features(sp), base)).to_pandas() for sp in eval_frames}
+        seq_frames = (with_lags(fit_pdf, lag_train), with_lags(es_pdf, lag_train), with_lags(sel_pdf, lag_train),
+                      {sp: eval_frames[sp][["vehicle_id"] + SPEC_COLUMNS].merge(lag_eval[sp].drop(columns="time_step"),
+                                                                                 on="vehicle_id", how="left")
+                       for sp in eval_frames})
+        del lag_train
+        meta = train_family(SEQUENCE_FAMILY, lambda sd: SQ.GRUSequenceClassifier(5, base, SPEC_COLUMNS, seed=sd,
+                                                                                 checkpoint_dir=MODELS_DIR / "scania"),
+                            seq_frames, FAMILY_SEEDS)
+        results["modelos"][SEQUENCE_FAMILY] = {"familia": SEQUENCE_FAMILY, "features": "invariantes (historial)",
+                                               "features_por_lectura": base, "lecturas": SQ.LAGS, **meta}
+        (MODELS_DIR / "sequence_spec.json").write_text(json.dumps({"base_cols": base, "lags": SQ.LAGS}), encoding="utf-8")
 
     if all(m in fitted for m in ENSEMBLE):
         fitted["ensemble"] = MeanEnsemble([fitted[m] for m in ENSEMBLE])
@@ -469,25 +507,9 @@ def run(force_features: bool = False, models: list[str] | None = None) -> dict:
         analysis["paired_bootstrap"][split] = SA.paired_bootstrap(y_split, split_probas, selected)
     analysis["cut_timing"] = SA.cut_timing(train_rand, {"validation": split_feats["validation"], "test": split_feats["test"]})
 
-    # Variacion entre semillas: el mismo modelo y los mismos datos, otra semilla. Dice cuanto del orden de la
-    # tabla de seleccion es ruido de entrenamiento.
-    spread = {}
-    cols = feature_sets["invariantes"]
-    for name in ("mlp", "xgboost"):
-        if name not in fitted:
-            continue
-        rows = [{"seed": SEED, "seleccion": results["modelos"][name]["seleccion"]["costo_por_1000_camiones"],
-                 **{s: results["modelos"][name][s]["ahorro_pct"] for s in eval_frames}}]
-        for seed in SEED_SPREAD:
-            m = TabularModel(name, 5, categorical=SPEC_COLUMNS, seed=seed)
-            m.fit(clean(fit_pdf, cols), fit_pdf["class_label"], fit_pdf["weight"],
-                  clean(es_pdf, cols), es_pdf["class_label"], es_pdf["weight"])
-            row = {"seed": seed, "seleccion": selection_metrics(sel_y, m.predict_proba(clean(sel_pdf, cols)), sel_w)["costo_por_1000_camiones"]}
-            for split, frame in eval_frames.items():
-                row[split] = round(saving_pct(frame["class_label"].to_numpy(), m.predict_proba(clean(frame, cols))), 2)
-            rows.append(row)
-            print(f"[Semillas] {name} {row}", flush=True)
-        spread[name] = rows
+    # Variacion entre semillas, de las mismas corridas por familia: dice cuanto del orden es ruido de entrenamiento.
+    spread = {k: [{"seed": r["seed"], "seleccion": r["seleccion"], "validation": r["validation"], "test": r["test"]}
+                  for r in v["semillas"]] for k, v in results["modelos"].items() if len(v.get("semillas", [])) > 1}
     analysis["seed_spread"] = spread
     results["analisis"] = analysis
     print("[Analisis] listo", flush=True)
@@ -524,6 +546,24 @@ def run(force_features: bool = False, models: list[str] | None = None) -> dict:
         }
     results["clasificador"] = clf_block
     export_predictions(selected)
+
+    # Calibracion isotonica fuera de muestra: se ajusta con los camiones de seleccion (retenidos del entrenamiento,
+    # ponderados con el protocolo de una lectura por camion) y se evalua en validacion y test, que no participan.
+    calib = {}
+    for key in dict.fromkeys([selected, "lightgbm"]):
+        iso = K.fit_risk_calibrator(probas[key]["select"], sel_y, sel_w)
+        exp = K.export_calibrator(iso)
+        calib[key] = {}
+        for split, frame in eval_frames.items():
+            y_split = frame["class_label"].to_numpy()
+            pc = K.apply_risk_calibration(probas[key][split], np.array(exp["x"]), np.array(exp["y"]))
+            calib[key][split] = {"ahorro_pct": round(saving_pct(y_split, pc), 2),
+                                 "costo_visita_equilibrio": K.break_even(y_split, pc),
+                                 "riesgo_medio_predicho": round(float((1 - pc[:, 0]).mean()), 4),
+                                 "sensibilidad": [{"k": r["k"], "ahorro_pct": round(r["ahorro_pct"], 2)} for r in K.sensitivity(y_split, pc)]}
+    results["calibracion_isotonica"] = calib
+    print("[Calibracion isotonica]", {k: {s: (v[s]["ahorro_pct"], v[s]["costo_visita_equilibrio"]) for s in v} for k, v in calib.items()},
+          flush=True)
 
     # --- 3. tiempo restante (solo camiones con reparacion observada), con las features invariantes
     ttf_cols = feature_sets["invariantes"]
@@ -576,13 +616,24 @@ def run(force_features: bool = False, models: list[str] | None = None) -> dict:
     # --- artefactos para la API: el modelo seleccionado y sus columnas
     joblib.dump(fitted[selected], MODELS_DIR / "risk_classifier.joblib")
     joblib.dump(ttf, MODELS_DIR / "time_to_failure.joblib")
-    (MODELS_DIR / "feature_columns.json").write_text(json.dumps(feature_sets["invariantes"]), encoding="utf-8")
+    if selected == SEQUENCE_FAMILY:
+        from src.models import sequence_scania as SQ
+
+        spec = json.loads((MODELS_DIR / "sequence_spec.json").read_text(encoding="utf-8"))
+        served_cols = SQ.lag_columns(spec["base_cols"], spec["lags"]) + SPEC_COLUMNS
+        (MODELS_DIR / "sequence_spec.json").write_text(json.dumps({**spec, "served": True}), encoding="utf-8")
+    else:
+        served_cols = feature_sets["invariantes"]
+        (MODELS_DIR / "sequence_spec.json").unlink(missing_ok=True)
+    (MODELS_DIR / "feature_columns.json").write_text(json.dumps(served_cols), encoding="utf-8")
     readout_columns = [c for c in readouts_tr.columns if c != "vehicle_id"]
     (MODELS_DIR / "readout_columns.json").write_text(json.dumps(readout_columns), encoding="utf-8")
     (MODELS_DIR / "spec_categories.json").write_text(json.dumps(cats), encoding="utf-8")
-    pooled = K.fit_platt(np.vstack([by_split[s][1] for s in by_split]), np.concatenate([by_split[s][0] for s in by_split]))
-    results["clasificador"]["platt_para_api"] = pooled
-    (MODELS_DIR / "platt.json").write_text(json.dumps(pooled), encoding="utf-8")
+    # La API sirve las probabilidades con la isotonica ajustada en los camiones de seleccion (fuera de muestra, sin
+    # tocar validacion ni test), la misma cuyo efecto se informa en results["calibracion_isotonica"].
+    iso = K.export_calibrator(K.fit_risk_calibrator(probas[selected]["select"], sel_y, sel_w))
+    (MODELS_DIR / "calibrator.json").write_text(json.dumps(iso), encoding="utf-8")
+    (MODELS_DIR / "platt.json").unlink(missing_ok=True)
     (REPORTS_DIR / "results.json").write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"Resultados en {REPORTS_DIR / 'results.json'}")
     return results
